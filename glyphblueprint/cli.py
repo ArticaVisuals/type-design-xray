@@ -37,6 +37,15 @@ def _parser() -> argparse.ArgumentParser:
         help="master to read by name or ID (default: first)",
     )
     parser.add_argument(
+        "--compound",
+        "--remove-overlap",
+        action="store_true",
+        help=(
+            "merge overlapping shapes into a single outline, as the font "
+            "compiler does at export"
+        ),
+    )
+    parser.add_argument(
         "--list-layers",
         metavar="GLYPH",
         help="print available layers for a glyph and exit",
@@ -493,6 +502,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             per_glyph=args.per_glyph,
             layer=args.layer,
             master=args.master,
+            compound=args.compound,
             preset=args.preset,
             config=args.config,
             overrides=overrides or None,

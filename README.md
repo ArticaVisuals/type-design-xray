@@ -28,6 +28,8 @@ animated.
 - Optional **metrics overlay**: baseline, x-height, cap height, ascender,
   descender and per-glyph side bearings, with numeric labels
 - Renders **open contours**, so hand-drawn centreline/skeleton layers work
+- Optionally **merges overlapping shapes** (`--compound`) the way the font
+  compiler does at export, so you can blueprint the finished outline
 - Exports **SVG** (primary), plus PNG and PDF
 - Everything visual is configurable — **77+ style properties**, every one
   settable from a config file *or* the command line
@@ -180,6 +182,45 @@ exporting a whole character set.
 
 **Layers** — `background`, `metrics`, `fill`, `outline`, `handle_lines`,
 `handle_points`, `nodes`, each independently on or off.
+
+## Compounded outlines (`--compound`)
+
+Glyphs sources store letterforms as separate **overlapping shapes** — an `f` is
+typically a stem-and-arch shape with the crossbar laid across it as its own
+rectangle. The font compiler merges those at export. `--compound` does the same
+thing, so you can blueprint the finished outline instead of the construction:
+
+```bash
+glyphblueprint MyFont.glyphs "f" --compound --out f.svg
+```
+
+<p align="center">
+  <img src="examples/output/compound-before.svg" width="45%" alt="Source f: the crossbar is a separate rectangle crossing the stem">
+  <img src="examples/output/compound-after.svg" width="45%" alt="Compounded f: one outline with intersection nodes where the crossbar meets the stem">
+</p>
+
+Left: the source, two overlapping contours. Right: compounded, one contour with
+new nodes where the crossbar meets the stem.
+
+`--remove-overlap` is an alias for the same option. It needs the extra:
+
+```bash
+pip install "glyphblueprint[compound]"
+```
+
+This uses `skia-pathops`, the same engine `fontmake` uses for overlap removal,
+so results match a real export. Two things worth knowing:
+
+- **Open contours are never merged.** A boolean union is meaningless on an open
+  centreline, so open paths pass through untouched and your `Skeleton v1`-style
+  layers are safe.
+- **Node types at new intersections are inferred, not authored.** Merging
+  invents nodes that don't exist in your source. Nodes that survive at their
+  original coordinates keep their real smooth/corner flags; only the new ones
+  are inferred. The exported OTF has exactly the same limitation.
+
+Without `--compound` you see the shapes as you actually drew them, which is
+usually what you want when reviewing construction.
 
 ## Motion design: After Effects and Illustrator
 

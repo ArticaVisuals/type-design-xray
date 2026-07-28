@@ -25,6 +25,7 @@ def _prepare_blueprint(
     *,
     layer: Optional[str] = None,
     master: Optional[str] = None,
+    compound: bool = False,
     preset: Optional[str] = None,
     config: Any = None,
     overrides: Any = None,
@@ -34,6 +35,10 @@ def _prepare_blueprint(
     title: Optional[str] = None
 ) -> Tuple[ir.Font, ir.Layout, Style, str]:
     font = load_font(font_path, layer=layer, master=master)
+    if compound:
+        from .compound import compound_font
+
+        font = compound_font(font)
     layout = layout_string(
         font,
         text,
@@ -56,6 +61,7 @@ def blueprint(
     *,
     layer: Optional[str] = None,
     master: Optional[str] = None,
+    compound: bool = False,
     preset: Optional[str] = None,
     config: Any = None,
     overrides: Any = None,
@@ -70,6 +76,7 @@ def blueprint(
         text,
         layer=layer,
         master=master,
+        compound=compound,
         preset=preset,
         config=config,
         overrides=overrides,
@@ -240,12 +247,13 @@ def blueprint_to_files(
     formats: Sequence[str] = ("svg",),
     png_width: Optional[int] = None,
     per_glyph: bool = False,
+    compound: bool = False,
     **kw: Any
 ) -> List[Path]:
     """Render a blueprint and write its requested full-run and glyph files."""
     format_names = _normalise_formats(formats)
     _, layout, resolved_style, full_svg = _prepare_blueprint(
-        font_path, text, **kw
+        font_path, text, compound=compound, **kw
     )
     title = kw.get("title")
     documents = _render_documents(
