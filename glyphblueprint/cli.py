@@ -139,6 +139,60 @@ def _parser() -> argparse.ArgumentParser:
         metavar="COLOR",
         help="canvas background color; use 'none' for transparency",
     )
+
+    labels = parser.add_argument_group("measurement labels")
+    labels.add_argument(
+        "--label-font",
+        metavar="FAMILY",
+        help="font family for metric labels, e.g. 'Helvetica Neue, sans-serif'",
+    )
+    labels.add_argument(
+        "--label-size", type=float, metavar="PX", help="metric label size in pixels"
+    )
+    labels.add_argument(
+        "--label-weight",
+        metavar="WEIGHT",
+        help="metric label weight: normal, bold, or 100-900",
+    )
+    labels.add_argument(
+        "--label-style",
+        choices=("normal", "italic", "oblique"),
+        help="metric label font style",
+    )
+    labels.add_argument(
+        "--label-color", metavar="COLOR", help="metric label color"
+    )
+    labels.add_argument(
+        "--label-tracking",
+        type=float,
+        metavar="PX",
+        help="metric label letter-spacing in pixels",
+    )
+    labels.add_argument(
+        "--no-label-values",
+        action="store_true",
+        help="draw metric names without their numeric values",
+    )
+
+    export = parser.add_argument_group(
+        "export structure (Illustrator / After Effects)"
+    )
+    export.add_argument(
+        "--id-prefix",
+        metavar="PREFIX",
+        help="prefix every generated element id, so several blueprints can be "
+        "imported into one project without id collisions",
+    )
+    export.add_argument(
+        "--no-element-ids",
+        action="store_true",
+        help="omit per-node element ids, keeping only layer and glyph groups",
+    )
+    export.add_argument(
+        "--no-contour-groups",
+        action="store_true",
+        help="do not wrap each contour's elements in its own group",
+    )
     parser.add_argument(
         "--out",
         metavar="PATH",
@@ -276,6 +330,23 @@ def _explicit_overrides(args: argparse.Namespace) -> List[str]:
         )
     if args.background is not None:
         overrides.append("canvas.background={}".format(args.background))
+    for value, key in (
+        (args.label_font, "metrics.label_family"),
+        (args.label_size, "metrics.label_size"),
+        (args.label_weight, "metrics.label_weight"),
+        (args.label_style, "metrics.label_style"),
+        (args.label_color, "metrics.label_color"),
+        (args.label_tracking, "metrics.label_letter_spacing"),
+        (args.id_prefix, "export.id_prefix"),
+    ):
+        if value is not None:
+            overrides.append("{}={}".format(key, value))
+    if args.no_label_values:
+        overrides.append("metrics.label_values=false")
+    if args.no_element_ids:
+        overrides.append("export.element_ids=false")
+    if args.no_contour_groups:
+        overrides.append("export.group_by_contour=false")
     if args.png_width is not None:
         overrides.append("canvas.png_width={}".format(args.png_width))
     if args.width is not None:

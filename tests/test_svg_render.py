@@ -77,7 +77,7 @@ def test_output_is_xml_with_ordered_toggleable_layers_and_glyph_groups():
     ]
     assert _layer(root, "fill") is None
     assert _layer(root, "outline").find(
-        ".//svg:g[@id='glyph-0-a'][@data-glyph='a']", SVG
+        ".//svg:g[@id='outline_01a'][@data-glyph='a']", SVG
     ) is not None
 
 
@@ -234,6 +234,6 @@ def test_single_glyph_convenience_uses_glyph_metrics_and_advance():
     root = _root(render_glyph_svg(glyph, style_contract.Style()))
 
     group = _layer(root, "outline").find(
-        ".//svg:g[@id='glyph-0-ampersand']", SVG
+        ".//svg:g[@id='outline_01ampersand']", SVG
     )
     assert group is not None

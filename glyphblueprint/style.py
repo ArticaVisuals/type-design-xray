@@ -184,6 +184,15 @@ class MetricsStyle:
     label_color: str = "#6f9fd8"
     label_size: float = 11.0
     label_family: str = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    #: Any CSS font-weight: "normal", "bold", or a numeric string "100".."900".
+    label_weight: str = "normal"
+    #: CSS font-style: "normal", "italic" or "oblique".
+    label_style: str = "normal"
+    #: CSS letter-spacing in px; negative tightens.
+    label_letter_spacing: float = 0.0
+    label_opacity: float = 1.0
+    #: Small-caps and other variants, e.g. "small-caps". "normal" to disable.
+    label_variant: str = "normal"
     #: Include the raw font-unit value in each label ("x-height 510").
     label_values: bool = True
     #: Guide overhang past the lockup on each side, in px.
@@ -223,6 +232,25 @@ class LayerToggles:
 
 
 @dataclass
+class ExportStyle:
+    """How the SVG is structured for downstream editors.
+
+    Illustrator and After Effects derive layer names from SVG ``id``
+    attributes, so naming every element is what makes a blueprint usable as
+    motion-design source rather than a flat picture.
+    """
+
+    #: Emit a readable ``id`` on every drawn element, not just layer groups.
+    element_ids: bool = True
+    #: Wrap each contour's elements in their own ``<g>``, so a contour arrives
+    #: as one selectable group (and one precomp-able layer) downstream.
+    group_by_contour: bool = True
+    #: Prefixed to every generated id. Set this when several blueprints will be
+    #: imported into the same document and their ids must not collide.
+    id_prefix: str = ""
+
+
+@dataclass
 class Style:
     """The single resolved style object handed to the renderer."""
 
@@ -232,6 +260,7 @@ class Style:
     nodes: NodeStyle = field(default_factory=NodeStyle)
     metrics: MetricsStyle = field(default_factory=MetricsStyle)
     layers: LayerToggles = field(default_factory=LayerToggles)
+    export: ExportStyle = field(default_factory=ExportStyle)
     #: Name of the preset this style started from, for provenance in the SVG.
     preset_name: str = "blueprint"
 
@@ -374,6 +403,7 @@ __all__ = [
     "MetricsStyle",
     "CanvasStyle",
     "LayerToggles",
+    "ExportStyle",
     "Style",
     "dotted_paths",
 ]

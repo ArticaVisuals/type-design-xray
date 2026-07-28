@@ -147,6 +147,104 @@ def test_every_preset_renders_valid_xml(demo):
         ET.fromstring(svg)
 
 
+def _ids(svg):
+    root = ET.fromstring(svg)
+    return [el.get("id") for el in root.iter() if el.get("id")]
+
+
+def test_every_element_id_is_unique(demo):
+    """Duplicate ids are invalid XML and break Illustrator/After Effects import."""
+    style = resolve_style(preset="blueprint")
+    style.metrics.visible = True
+    style.metrics.show = ["baseline", "xheight", "capheight", "sidebearings"]
+    style.outline.fill_enabled = True
+    ids = _ids(render_svg(layout_string(demo, "Vao"), style))
+    assert ids
+    assert len(ids) == len(set(ids)), "duplicate ids: {}".format(
+        sorted({i for i in ids if ids.count(i) > 1})
+    )
+
+
+def test_elements_carry_readable_names_for_motion_workflows(demo):
+    style = resolve_style(preset="blueprint")
+    ids = set(_ids(render_svg(layout_string(demo, "ao"), style)))
+    # glyph token, contour group, and per-node handle/point/node names
+    assert "outline_01a" in ids
+    assert "outline_01a_c01" in ids
+    assert "outline_01a_c01_path" in ids
+    assert any(i.startswith("handleline_01a_c01_n") and i.endswith("_out") for i in ids)
+    assert any(i.startswith("handlepoint_01a_c01_n") for i in ids)
+    assert any(
+        i.startswith("node_01a_c01_n") and i.endswith(("_corner", "_smooth"))
+        for i in ids
+    )
+
+
+def test_id_prefix_namespaces_every_generated_name(demo):
+    style = resolve_style(preset="blueprint")
+    style.export.id_prefix = "shotA-"
+    ids = _ids(render_svg(layout_string(demo, "o"), style))
+    assert ids
+    assert all(i.startswith("shotA-") for i in ids), [
+        i for i in ids if not i.startswith("shotA-")
+    ]
+
+
+def test_export_toggles_drop_ids_and_contour_groups(demo):
+    style = resolve_style(preset="blueprint")
+    style.export.element_ids = False
+    style.export.group_by_contour = False
+    ids = set(_ids(render_svg(layout_string(demo, "o"), style)))
+    # Leaf ids go away; structural group ids (layer, glyph) are kept.
+    assert not any("_c01_n" in i for i in ids)
+    assert "outline" in ids and "outline_01o" in ids
+
+    root = ET.fromstring(render_svg(layout_string(demo, "o"), style))
+    assert not [el for el in root.iter() if el.get("data-contour-index") is not None]
+
+
+def test_metric_label_font_is_fully_controllable(demo):
+    style = resolve_style(preset="blueprint")
+    style.metrics.visible = True
+    style.metrics.show = ["baseline", "xheight"]
+    style.metrics.label_family = "Futura, sans-serif"
+    style.metrics.label_size = 18.0
+    style.metrics.label_weight = "700"
+    style.metrics.label_style = "italic"
+    style.metrics.label_variant = "small-caps"
+    style.metrics.label_letter_spacing = 1.5
+    style.metrics.label_opacity = 0.8
+
+    root = ET.fromstring(render_svg(layout_string(demo, "o"), style))
+    texts = [el for el in root.iter() if el.tag.endswith("text")]
+    assert texts
+    for el in texts:
+        assert el.get("font-family") == "Futura, sans-serif"
+        assert el.get("font-size") == "18"
+        assert el.get("font-weight") == "700"
+        assert el.get("font-style") == "italic"
+        assert el.get("font-variant") == "small-caps"
+        assert el.get("letter-spacing") == "1.5"
+        assert el.get("fill-opacity") == "0.8"
+
+
+def test_metric_labels_do_not_collide_with_sidebearing_labels(demo):
+    """Side-bearing labels sit along the bottom, metric labels along the top."""
+    style = resolve_style(preset="blueprint")
+    style.metrics.visible = True
+    style.metrics.show = ["baseline", "xheight", "capheight", "sidebearings"]
+    root = ET.fromstring(render_svg(layout_string(demo, "Vao"), style))
+    rows = {}
+    for el in root.iter():
+        if not el.tag.endswith("text"):
+            continue
+        rows.setdefault(el.get("data-metric"), []).append(float(el.get("y")))
+    horizontal = [y for name, ys in rows.items() if name != "sidebearings" for y in ys]
+    sidebearing = rows.get("sidebearings", [])
+    assert horizontal and sidebearing
+    assert min(sidebearing) > max(horizontal)
+
+
 def test_public_api_matches_renderer_output(demo):
     style = resolve_style(preset="light")
     direct = render_svg(layout_string(demo, "Tao"), style)

@@ -54,12 +54,87 @@ def _slug(value: str) -> str:
     return cleaned or "unnamed"
 
 
-def _glyph_attributes(index: int, glyph: ir.Glyph) -> dict:
+def _glyph_attributes(
+    index: int,
+    glyph: ir.Glyph,
+    layer_name: str = "",
+    resolved_style: Optional[style_contract.Style] = None,
+) -> dict:
+    # The glyph group repeats once per render layer, so the layer name has to be
+    # part of the id -- duplicate ids are invalid XML and make Illustrator and
+    # After Effects merge or rename layers on import.
+    parts = [p for p in (layer_name, _glyph_token(index, glyph)) if p]
     return {
-        "id": "glyph-{}-{}".format(index, _slug(glyph.name)),
+        "id": _identifier(resolved_style, *parts),
         "data-glyph": glyph.name,
         "data-glyph-index": str(index),
     }
+
+
+def _glyph_token(index: int, glyph: ir.Glyph) -> str:
+    """Short stable token identifying a glyph within the lockup, e.g. ``01a``."""
+    return "{:02d}{}".format(index + 1, _slug(glyph.name))
+
+
+def _identifier(
+    resolved_style: Optional[style_contract.Style], *parts: str
+) -> str:
+    """Build a prefixed, slugified id from its parts.
+
+    Every id in the document goes through here so that ``export.id_prefix``
+    namespaces the whole file -- otherwise importing two blueprints into one
+    Illustrator or After Effects project would still collide.
+    """
+    name = "_".join(str(part) for part in parts if part)
+    prefix = resolved_style.export.id_prefix if resolved_style is not None else ""
+    return _slug("{}{}".format(prefix, name)) if prefix else _slug(name)
+
+
+def _named(
+    element: Optional[ET.Element],
+    resolved_style: style_contract.Style,
+    *parts: str
+) -> Optional[ET.Element]:
+    """Attach a readable ``id`` to a drawn element, if element ids are enabled.
+
+    Illustrator and After Effects use the SVG ``id`` as the imported layer
+    name, so these names are the difference between a usable motion-design
+    source file and an anonymous pile of shapes. Structural groups (layers,
+    glyphs, contours) keep their ids regardless; ``export.element_ids`` only
+    governs the per-node leaf elements, which are the bulk of the document.
+    """
+    if element is None or not resolved_style.export.element_ids:
+        return element
+    element.set("id", _identifier(resolved_style, *parts))
+    return element
+
+
+def _contour_container(
+    parent: ET.Element,
+    resolved_style: style_contract.Style,
+    layer_name: str,
+    glyph_token: str,
+    contour_index: int,
+    contour: ir.Contour,
+) -> ET.Element:
+    """A per-contour group, so a contour imports as one selectable object."""
+    if not resolved_style.export.group_by_contour:
+        return parent
+    group = ET.SubElement(
+        parent,
+        "g",
+        {
+            "id": _identifier(
+                resolved_style,
+                layer_name,
+                glyph_token,
+                "c{:02d}".format(contour_index + 1),
+            ),
+            "data-contour-index": str(contour_index),
+            "data-closed": "true" if contour.closed else "false",
+        },
+    )
+    return group
 
 
 def _metric_items(layout: ir.Layout) -> List[Tuple[str, str, float]]:
@@ -390,9 +465,15 @@ def _geometry_group(layer: ET.Element, frame: _Frame) -> ET.Element:
 
 
 def _positioned_glyph_group(
-    parent: ET.Element, index: int, positioned: ir.PositionedGlyph
+    parent: ET.Element,
+    index: int,
+    positioned: ir.PositionedGlyph,
+    layer_name: str = "",
+    resolved_style: Optional[style_contract.Style] = None,
 ) -> ET.Element:
-    attributes = _glyph_attributes(index, positioned.glyph)
+    attributes = _glyph_attributes(
+        index, positioned.glyph, layer_name, resolved_style
+    )
     if positioned.origin_x != 0 or positioned.origin_y != 0:
         attributes["transform"] = "translate({} {})".format(
             _number(positioned.origin_x), _number(positioned.origin_y)
@@ -425,19 +506,30 @@ def _metric_label(
     value: str,
     metric_name: str,
     resolved_style: style_contract.Style,
+    anchor: str = "start",
 ) -> None:
-    text = ET.SubElement(
-        parent,
-        "text",
-        {
-            "x": _number(x),
-            "y": _number(y),
-            "fill": resolved_style.metrics.label_color,
-            "font-size": _number(resolved_style.metrics.label_size),
-            "font-family": resolved_style.metrics.label_family,
-            "data-metric": metric_name,
-        },
-    )
+    metrics_style = resolved_style.metrics
+    attributes = {
+        "x": _number(x),
+        "y": _number(y),
+        "fill": metrics_style.label_color,
+        "font-size": _number(metrics_style.label_size),
+        "font-family": metrics_style.label_family,
+        "data-metric": metric_name,
+    }
+    if metrics_style.label_weight != "normal":
+        attributes["font-weight"] = metrics_style.label_weight
+    if metrics_style.label_style != "normal":
+        attributes["font-style"] = metrics_style.label_style
+    if metrics_style.label_variant != "normal":
+        attributes["font-variant"] = metrics_style.label_variant
+    if metrics_style.label_letter_spacing:
+        attributes["letter-spacing"] = _number(metrics_style.label_letter_spacing)
+    if metrics_style.label_opacity != 1.0:
+        attributes["fill-opacity"] = _number(metrics_style.label_opacity)
+    if anchor != "start":
+        attributes["text-anchor"] = anchor
+    text = ET.SubElement(parent, "text", attributes)
     text.text = value
 
 
@@ -481,7 +573,9 @@ def _render_metrics(
                 _metric_label(
                     labels,
                     screen_x,
-                    screen_y,
+                    # Sit the label just above its guide rather than centred on
+                    # it, so the rule stays readable through the text.
+                    screen_y - metrics_style.label_size * 0.35,
                     text,
                     name,
                     resolved_style,
@@ -522,13 +616,22 @@ def _render_metrics(
                 text = side
                 if metrics_style.label_values and raw_value is not None:
                     text = "{} {}".format(side, _number(raw_value))
+                # Side-bearing labels live along the bottom, clear of the
+                # horizontal metric labels which are anchored top-left. lsb and
+                # rsb sit on separate rows and anchor away from their own guide,
+                # because one glyph's rsb and the next glyph's lsb can land on
+                # nearly the same x once kerning pulls them together.
+                row = 0 if side == "lsb" else 1
                 _metric_label(
                     labels,
-                    screen_x,
-                    frame.padding + metrics_style.label_size,
+                    screen_x + (2.0 if side == "lsb" else -2.0),
+                    frame.height
+                    - frame.padding
+                    + metrics_style.label_size * (1.0 + row * 1.25),
                     text,
                     "sidebearings",
                     resolved_style,
+                    anchor="start" if side == "lsb" else "end",
                 )
 
 
@@ -540,7 +643,7 @@ def _render_fill(
 ) -> None:
     geometry = _geometry_group(layer, frame)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned)
+        glyph_group = _positioned_glyph_group(geometry, index, positioned, "fill", resolved_style)
         if not resolved_style.outline.fill_enabled:
             continue
         paths = [
@@ -550,7 +653,7 @@ def _render_fill(
         ]
         paths = [path for path in paths if path]
         if paths:
-            ET.SubElement(
+            element = ET.SubElement(
                 glyph_group,
                 "path",
                 {
@@ -559,6 +662,13 @@ def _render_fill(
                     "fill-opacity": _number(resolved_style.outline.fill_opacity),
                     "stroke": "none",
                 },
+            )
+            _named(
+                element,
+                resolved_style,
+                "fill",
+                _glyph_token(index, positioned.glyph),
+                "path",
             )
 
 
@@ -571,14 +681,27 @@ def _render_outline(
     geometry = _geometry_group(layer, frame)
     line_style = resolved_style.outline.as_line()
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned)
+        glyph_group = _positioned_glyph_group(geometry, index, positioned, "outline", resolved_style)
         if not line_style.visible:
             continue
         attributes = _line_attributes(line_style, frame.scale)
-        for contour in positioned.glyph.contours:
+        token = _glyph_token(index, positioned.glyph)
+        for contour_index, contour in enumerate(positioned.glyph.contours):
             path = _contour_path(contour)
-            if path:
-                ET.SubElement(glyph_group, "path", dict(attributes, d=path))
+            if not path:
+                continue
+            container = _contour_container(
+                glyph_group, resolved_style, "outline", token, contour_index, contour
+            )
+            element = ET.SubElement(container, "path", dict(attributes, d=path))
+            _named(
+                element,
+                resolved_style,
+                "outline",
+                token,
+                "c{:02d}".format(contour_index + 1),
+                "path",
+            )
 
 
 def _render_handle_lines(
@@ -590,13 +713,22 @@ def _render_handle_lines(
     geometry = _geometry_group(layer, frame)
     line_style = resolved_style.handles.line
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned)
+        glyph_group = _positioned_glyph_group(geometry, index, positioned, "handleline", resolved_style)
         if not line_style.visible:
             continue
         base_attributes = _line_attributes(line_style, frame.scale)
-        for contour in positioned.glyph.contours:
-            for node in contour.nodes:
-                for handle in (node.handle_in, node.handle_out):
+        token = _glyph_token(index, positioned.glyph)
+        for contour_index, contour in enumerate(positioned.glyph.contours):
+            container = _contour_container(
+                glyph_group,
+                resolved_style,
+                "handleline",
+                token,
+                contour_index,
+                contour,
+            )
+            for node_index, node in enumerate(contour.nodes):
+                for side, handle in (("in", node.handle_in), ("out", node.handle_out)):
                     if handle is None or handle == node.point:
                         continue
                     attributes = dict(base_attributes)
@@ -606,9 +738,19 @@ def _render_handle_lines(
                             "y1": _number(node.y),
                             "x2": _number(handle[0]),
                             "y2": _number(handle[1]),
+                            "data-node-index": str(node_index),
+                            "data-handle": side,
                         }
                     )
-                    ET.SubElement(glyph_group, "line", attributes)
+                    _named(
+                        ET.SubElement(container, "line", attributes),
+                        resolved_style,
+                        "handleline",
+                        token,
+                        "c{:02d}".format(contour_index + 1),
+                        "n{:02d}".format(node_index + 1),
+                        side,
+                    )
 
 
 def _render_handle_points(
@@ -620,13 +762,34 @@ def _render_handle_points(
     geometry = _geometry_group(layer, frame)
     marker_style = resolved_style.handles.point
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned)
-        for contour in positioned.glyph.contours:
-            for node in contour.nodes:
-                for handle in (node.handle_in, node.handle_out):
+        glyph_group = _positioned_glyph_group(geometry, index, positioned, "handlepoint", resolved_style)
+        token = _glyph_token(index, positioned.glyph)
+        for contour_index, contour in enumerate(positioned.glyph.contours):
+            container = _contour_container(
+                glyph_group,
+                resolved_style,
+                "handlepoint",
+                token,
+                contour_index,
+                contour,
+            )
+            for node_index, node in enumerate(contour.nodes):
+                for side, handle in (("in", node.handle_in), ("out", node.handle_out)):
                     if handle is None or handle == node.point:
                         continue
-                    _marker(glyph_group, handle, marker_style, frame.scale)
+                    element = _marker(container, handle, marker_style, frame.scale)
+                    if element is not None:
+                        element.set("data-node-index", str(node_index))
+                        element.set("data-handle", side)
+                    _named(
+                        element,
+                        resolved_style,
+                        "handlepoint",
+                        token,
+                        "c{:02d}".format(contour_index + 1),
+                        "n{:02d}".format(node_index + 1),
+                        side,
+                    )
 
 
 def _render_nodes(
@@ -637,13 +800,31 @@ def _render_nodes(
 ) -> None:
     geometry = _geometry_group(layer, frame)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned)
-        for contour in positioned.glyph.contours:
-            for node in contour.nodes:
+        glyph_group = _positioned_glyph_group(geometry, index, positioned, "node", resolved_style)
+        token = _glyph_token(index, positioned.glyph)
+        for contour_index, contour in enumerate(positioned.glyph.contours):
+            container = _contour_container(
+                glyph_group, resolved_style, "node", token, contour_index, contour
+            )
+            for node_index, node in enumerate(contour.nodes):
                 marker_style = resolved_style.nodes.corner
+                kind = "corner"
                 if resolved_style.nodes.distinguish_types and node.smooth:
                     marker_style = resolved_style.nodes.smooth
-                _marker(glyph_group, node.point, marker_style, frame.scale)
+                    kind = "smooth"
+                element = _marker(container, node.point, marker_style, frame.scale)
+                if element is not None:
+                    element.set("data-node-index", str(node_index))
+                    element.set("data-node-type", "smooth" if node.smooth else "corner")
+                _named(
+                    element,
+                    resolved_style,
+                    "node",
+                    token,
+                    "c{:02d}".format(contour_index + 1),
+                    "n{:02d}".format(node_index + 1),
+                    kind,
+                )
 
 
 def render_svg(
@@ -691,7 +872,7 @@ def render_svg(
             root,
             "g",
             {
-                "id": name,
+                "id": _identifier(style, name),
                 "data-layer": name,
             },
         )

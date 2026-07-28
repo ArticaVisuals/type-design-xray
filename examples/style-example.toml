@@ -1,0 +1,52 @@
+# A worked example: start from a preset, then change only what you need.
+# Use with:  glyphblueprint MyFont.glyphs "afz" --config examples/style-example.toml
+preset = "blueprint"
+
+[canvas]
+background = "#101820"
+width = 1600
+padding = 64
+frame = "auto"          # auto | em | metrics
+
+[outline]
+stroke = "#7dd3fc"
+width = 2.0
+fill_enabled = true
+fill = "#7dd3fc"
+fill_opacity = 0.08
+
+[handles.point]
+shape = "diamond"       # circle | square | diamond | triangle | cross | none
+size = 4.0
+hollow = true
+stroke = "#fbbf24"
+
+[handles.line]
+color = "#fbbf24"
+dash = "dotted"         # solid | dashed | dotted | dashdot
+width = 1.0
+
+[nodes.corner]
+shape = "square"
+fill = "#ffffff"
+
+[nodes.smooth]
+shape = "circle"
+fill = "#7dd3fc"
+
+[metrics]
+visible = true
+show = ["baseline", "xheight", "capheight", "sidebearings"]
+labels = true
+label_family = "Helvetica Neue, Inter, sans-serif"
+label_size = 12.0
+label_weight = "600"
+label_style = "normal"
+label_letter_spacing = 0.4
+label_color = "#94a3b8"
+
+[export]
+# Names every element so Illustrator / After Effects show readable layers.
+element_ids = true
+group_by_contour = true
+id_prefix = ""
