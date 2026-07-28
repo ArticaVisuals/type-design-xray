@@ -1,0 +1,137 @@
+{
+.appVersion = "4000";
+.formatVersion = 4;
+fontMaster = (
+{
+id = M1;
+metricValues = (
+{ pos = 800; },
+{ pos = 700; },
+{ pos = 500; },
+{ },
+{ pos = -200; },
+);
+name = Regular;
+},
+);
+glyphs = (
+{
+glyphname = base;
+kernLeft = RightSide;
+kernRight = LeftSide;
+layers = (
+{
+layerId = M1;
+shapes = (
+{
+closed = 1;
+nodes = (
+(10,0,o),
+(20,0,cs),
+(30,0,o),
+(40,10,o),
+(50,10,cs),
+(100,10,ls),
+(110,0,o),
+);
+},
+{
+closed = 0;
+nodes = (
+(0,20,l),
+(10,30,o),
+(20,30,o),
+(30,20,c),
+);
+},
+{
+closed = 0;
+nodes = (
+(0,40,l),
+(10,50,o),
+(20,40,qs),
+);
+},
+);
+width = 140;
+},
+);
+unicode = 65;
+},
+{
+glyphname = composite;
+layers = (
+{
+layerId = M1;
+shapes = (
+{
+pos = (100,200);
+ref = base;
+scale = (2,1);
+},
+);
+width = 350;
+},
+{
+associatedMasterId = M1;
+layerId = ALT;
+name = Alternate;
+shapes = (
+{
+pos = (5,0);
+ref = base;
+},
+);
+width = 175;
+},
+);
+unicode = 66;
+},
+{
+glyphname = decimalZ;
+layers = (
+{
+layerId = M1;
+shapes = ();
+width = 200;
+},
+);
+unicode = 90;
+},
+{
+glyphname = hexA;
+layers = (
+{
+layerId = M1;
+shapes = ();
+width = 200;
+},
+);
+unicode = "0061";
+},
+);
+kerningLTR = {
+M1 = {
+"@MMK_L_LeftSide" = {
+"@MMK_R_RightSide" = -80;
+decimalZ = 15;
+};
+};
+};
+metrics = (
+{},
+{ type = "cap height"; },
+{ type = "x-height"; },
+{ type = baseline; },
+{ type = descender; },
+);
+properties = (
+{
+key = familyNames;
+values = (
+{ language = dflt; value = Synthetic; },
+);
+},
+);
+unitsPerEm = 1000;
+}

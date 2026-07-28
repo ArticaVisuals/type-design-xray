@@ -1,0 +1,285 @@
+{
+.appVersion = "3879";
+.formatVersion = 4;
+copyright = "Public domain. Made for glyphblueprint examples.";
+date = "2026-07-28 12:00:00 +0000";
+familyName = "Blueprint Demo";
+fontMaster = (
+{
+id = m01;
+metricValues = (
+{
+pos = 750;
+},
+{
+pos = 700;
+},
+{
+pos = 460;
+},
+{
+},
+{
+pos = -200;
+},
+{
+},
+);
+name = Regular;
+}
+);
+glyphs = (
+{
+glyphname = A;
+kernRight = A;
+layers = (
+{
+layerId = m01;
+shapes = (
+{
+closed = 1;
+nodes = (
+(0,0,l),
+(285,700,l),
+(355,700,l),
+(640,0,l),
+);
+},
+{
+closed = 1;
+nodes = (
+(185,190,l),
+(455,190,l),
+(320,520,l),
+);
+},
+);
+width = 640;
+}
+);
+unicode = 65;
+},
+{
+glyphname = V;
+kernRight = A;
+layers = (
+{
+layerId = m01;
+shapes = (
+{
+closed = 1;
+nodes = (
+(0,700,l),
+(125,700,l),
+(320,180,l),
+(515,700,l),
+(640,700,l),
+(380,0,l),
+(260,0,l),
+);
+},
+);
+width = 640;
+}
+);
+unicode = 86;
+},
+{
+glyphname = T;
+layers = (
+{
+layerId = m01;
+shapes = (
+{
+closed = 1;
+nodes = (
+(0,620,l),
+(0,700,l),
+(560,700,l),
+(560,620,l),
+(320,620,l),
+(320,0,l),
+(240,0,l),
+(240,620,l),
+);
+},
+);
+width = 560;
+}
+);
+unicode = 84;
+},
+{
+glyphname = o;
+kernLeft = o;
+layers = (
+{
+layerId = m01;
+shapes = (
+{
+closed = 1;
+nodes = (
+(530,250,cs),
+(530,388,o),
+(418,500,o),
+(280,500,cs),
+(142,500,o),
+(30,388,o),
+(30,250,cs),
+(30,112,o),
+(142,0,o),
+(280,0,cs),
+(418,0,o),
+(530,112,o),
+);
+},
+{
+closed = 1;
+nodes = (
+(280,410,cs),
+(192,410,o),
+(120,338,o),
+(120,250,cs),
+(120,162,o),
+(192,90,o),
+(280,90,cs),
+(368,90,o),
+(440,162,o),
+(440,250,cs),
+(440,338,o),
+(368,410,o),
+);
+},
+);
+width = 560;
+}
+);
+unicode = 111;
+},
+{
+glyphname = a;
+kernLeft = o;
+layers = (
+{
+layerId = m01;
+shapes = (
+{
+closed = 1;
+nodes = (
+(480,230,cs),
+(480,357,o),
+(377,460,o),
+(250,460,cs),
+(123,460,o),
+(20,357,o),
+(20,230,cs),
+(20,103,o),
+(123,0,o),
+(250,0,cs),
+(377,0,o),
+(480,103,o),
+);
+},
+{
+closed = 1;
+nodes = (
+(250,350,cs),
+(184,350,o),
+(130,296,o),
+(130,230,cs),
+(130,164,o),
+(184,110,o),
+(250,110,cs),
+(316,110,o),
+(370,164,o),
+(370,230,cs),
+(370,296,o),
+(316,350,o),
+);
+},
+{
+closed = 1;
+nodes = (
+(420,0,l),
+(500,0,l),
+(500,510,l),
+(420,510,l),
+);
+},
+);
+width = 560;
+},
+{
+associatedMasterId = m01;
+layerId = "9C1E6A20-4C3B-4B1E-9F2A-7D5E0B8A4411";
+name = "Skeleton v1";
+shapes = (
+{
+closed = 0;
+nodes = (
+(460,230,c),
+(460,357,o),
+(357,460,o),
+(230,460,c),
+(103,460,o),
+(0,357,o),
+(0,230,c),
+(0,103,o),
+(103,0,o),
+(230,0,c),
+(357,0,o),
+(440,80,o),
+(455,175,c),
+);
+},
+{
+closed = 0;
+nodes = (
+(460,510,l),
+(460,0,l),
+);
+},
+);
+width = 560;
+}
+);
+unicode = 97;
+},
+);
+kerningLTR = {
+m01 = {
+"@MMK_L_A" = {
+"@MMK_R_o" = -55;
+};
+T = {
+a = -85;
+o = -80;
+};
+V = {
+o = 0;
+};
+};
+};
+metrics = (
+{
+},
+{
+type = "cap height";
+},
+{
+type = "x-height";
+},
+{
+type = baseline;
+},
+{
+type = descender;
+},
+{
+type = "italic angle";
+},
+);
+unitsPerEm = 1000;
+versionMajor = 1;
+versionMinor = 0;
+}

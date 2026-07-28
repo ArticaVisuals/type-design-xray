@@ -1,0 +1,54 @@
+{
+.formatVersion = 2;
+familyName = LegacySynthetic;
+fontMaster = (
+{
+ascender = 750;
+capHeight = 680;
+descender = -220;
+id = LEGACY;
+name = Regular;
+xHeight = 480;
+},
+);
+glyphs = (
+{
+glyphname = part;
+layers = (
+{
+layerId = LEGACY;
+paths = (
+{
+closed = 1;
+nodes = (
+"0 0 LINE",
+"20 0 OFFCURVE",
+"30 10 OFFCURVE",
+"40 0 CURVE SMOOTH",
+);
+},
+);
+width = 50;
+},
+);
+unicode = "005A";
+},
+{
+glyphname = made;
+layers = (
+{
+components = (
+{
+name = part;
+pos = (10,0);
+},
+);
+layerId = LEGACY;
+width = 70;
+},
+);
+unicode = "0061,0062";
+},
+);
+unitsPerEm = 1000;
+}
