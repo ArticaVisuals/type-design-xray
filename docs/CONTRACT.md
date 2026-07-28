@@ -17,6 +17,7 @@ another module.
 | C — layout | `glyphblueprint/layout.py`, `tests/test_layout.py` |
 | D — renderer | `glyphblueprint/render/svg.py`, `tests/test_svg_render.py` |
 | E — config/export | `glyphblueprint/config.py`, `glyphblueprint/render/raster.py`, `presets/*.json`, `tests/test_config.py` |
+| G — ufo parser | `glyphblueprint/parsers/ufo.py`, `tests/test_ufo_parser.py` |
 | F — CLI | `glyphblueprint/cli.py`, `glyphblueprint/api.py`, `glyphblueprint/__init__.py`, `glyphblueprint/parsers/__init__.py`, `tests/test_cli.py` |
 
 ## The internal representation
@@ -60,12 +61,29 @@ Invariants every parser must satisfy:
 
 Defined in `glyphblueprint/style.py`. `Style` is a nested dataclass tree with
 `to_dict()` / `from_dict()` / `merged(dict)` / `set_path("a.b.c", value)`.
-There are 77 settable leaves. The renderer reads `Style` and nothing else for
-visual decisions — no hard-coded colours, sizes, or dash patterns anywhere.
+There are 85 settable leaves (run `glyphblueprint --list-style-keys` for the
+current list). The renderer reads `Style` and nothing else for visual decisions
+— no hard-coded colours, sizes, or dash patterns anywhere.
 
 Key helpers already provided: `LineStyle.dasharray()`,
 `MarkerStyle.effective_fill()`, `MarkerStyle.effective_stroke()`,
 `OutlineStyle.as_line()`, `LayerToggles.enabled(name)`, `style.dotted_paths()`.
+
+### Ids and document structure
+
+`ExportStyle` governs how the SVG is named, which is what makes the output
+usable in Illustrator and After Effects — both take layer names from SVG `id`
+attributes. Rules the renderer must keep:
+
+* **Every id in the document is unique.** Duplicates are invalid XML and cause
+  editors to merge or silently rename layers. The glyph group repeats once per
+  render layer, so its id must include the layer name.
+* **Every id goes through `_identifier()`**, so `export.id_prefix` namespaces
+  the whole document — including layer and glyph groups, not just leaves.
+* Names are hierarchical and readable:
+  `{layer}_{NN}{glyph}_c{NN}[_n{NN}][_in|_out|_corner|_smooth]`.
+* `export.element_ids=False` drops the per-node leaf ids only; structural
+  group ids (layer, glyph, contour) always remain.
 
 ## Environment
 
