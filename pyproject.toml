@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glyphblueprint"
+version = "1.0.0"
+description = "Export styled blueprint images of letterforms -- outline, nodes, bezier handles -- straight from font source files."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Micah Hoang" }]
+keywords = ["font", "typography", "glyphs", "bezier", "svg", "type-design"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Text Processing :: Fonts",
+]
+dependencies = [
+    "fonttools>=4.40",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+raster = ["cairosvg>=2.7"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+glyphblueprint = "glyphblueprint.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/micahhoang/glyphblueprint"
+Issues = "https://github.com/micahhoang/glyphblueprint/issues"
+
+[tool.setuptools.packages.find]
+include = ["glyphblueprint*"]
+
+[tool.setuptools.package-data]
+glyphblueprint = ["presets/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
