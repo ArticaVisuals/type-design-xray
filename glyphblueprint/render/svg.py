@@ -217,6 +217,15 @@ def _resolve_frame(
         bounds, horizontal_extended = _auto_base_bounds(layout, resolved_style)
     elif mode in ("em", "metrics"):
         ymin, ymax = _fallback_vertical_bounds(layout)
+        if mode == "em":
+            # The em square is a fixed reference box exactly one em tall,
+            # sitting on the font's descender. It is deliberately not a
+            # bounding box: on a font whose ascender minus descender exceeds
+            # the em (a very common case), tall glyphs will extend past it.
+            # That is the point of locking the frame -- every render of every
+            # string comes back at an identical scale.
+            upem = layout.units_per_em if layout.units_per_em > 0 else 1000.0
+            ymax = ymin + upem
         xmax = layout.total_advance
         if xmax <= 0:
             xmax = layout.units_per_em if layout.units_per_em > 0 else 1000.0
