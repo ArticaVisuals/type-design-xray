@@ -130,6 +130,11 @@ It gives you, live:
   width, and metric guide width. Drag to find a value by eye and the preview
   re-renders live; each slider has a number box beside it for exact entry,
   which accepts values beyond the slider's range.
+- **A metric label font chooser** — pick the typeface the annotations are set
+  in from the fonts actually installed on your machine, plus size, weight and
+  style. Note the SVG references the font *by name* rather than embedding it, so
+  a machine without that font will substitute a fallback when the file is opened
+  elsewhere.
 - **Granular metric toggles** — a master switch, then independent checkboxes for
   the guide *lines* and the numeric *labels*, plus one per guide (baseline,
   x-height, cap height, ascender, descender, side bearings) so you can render

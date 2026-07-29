@@ -7,17 +7,21 @@ import atexit
 import errno
 import html
 import json
+import logging
 import math
 import os
 import re
 import shutil
 import sys
 import tempfile
+import threading
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import unquote
+
+from fontTools.ttLib import TTCollection, TTFont
 
 from .api import blueprint
 from .config import available_presets, resolve_style
@@ -67,10 +71,136 @@ _SIZE_LIMITS = {
     "handles.line.width": 10.0,
     "metrics.line.width": 10.0,
 }
+_LABEL_PATHS = (
+    "metrics.label_family",
+    "metrics.label_size",
+    "metrics.label_weight",
+    "metrics.label_style",
+)
+_LABEL_PATH_SET = frozenset(_LABEL_PATHS)
+_LABEL_WEIGHTS = frozenset(
+    ("normal", "bold") + tuple(str(value) for value in range(100, 1000, 100))
+)
+_LABEL_STYLES = frozenset(("normal", "italic", "oblique"))
+_FONT_SUFFIXES = frozenset((".ttf", ".otf", ".ttc", ".otc"))
+_CONTROL_CHARACTER = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 _HEX_COLOR = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?")
 _METRIC_LINE_ELEMENT = re.compile(
     r'<line\b(?=[^>]*\bdata-metric=")[^>]*/>'
 )
+_INSTALLED_FONT_FAMILIES: Optional[List[str]] = None
+_INSTALLED_FONT_FAMILIES_LOCK = threading.Lock()
+
+
+def _platform_font_directories() -> List[Path]:
+    if sys.platform == "darwin":
+        return [
+            Path("/System/Library/Fonts"),
+            Path("/Library/Fonts"),
+            Path.home() / "Library" / "Fonts",
+        ]
+    if sys.platform.startswith("win"):
+        windows_directory = Path(
+            os.environ.get("WINDIR", r"C:\Windows")
+        )
+        local_app_data = Path(
+            os.environ.get(
+                "LOCALAPPDATA",
+                str(Path.home() / "AppData" / "Local"),
+            )
+        )
+        return [
+            windows_directory / "Fonts",
+            local_app_data / "Microsoft" / "Windows" / "Fonts",
+        ]
+    return [
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        Path.home() / ".fonts",
+        Path.home() / ".local" / "share" / "fonts",
+    ]
+
+
+def _font_family(font: TTFont) -> Optional[str]:
+    name_table = font["name"]
+    family = name_table.getDebugName(16) or name_table.getDebugName(1)
+    if family is None:
+        return None
+    family = family.strip()
+    if not family or family.startswith("."):
+        return None
+    return family
+
+
+def _scan_installed_font_families() -> List[str]:
+    families: Dict[str, str] = {}
+    fonttools_logger = logging.getLogger("fontTools")
+    previous_handlers = list(fonttools_logger.handlers)
+    previous_propagate = fonttools_logger.propagate
+    fonttools_logger.handlers = [logging.NullHandler()]
+    fonttools_logger.propagate = False
+    try:
+        for directory in _platform_font_directories():
+            try:
+                paths = (
+                    path
+                    for path in directory.rglob("*")
+                    if path.is_file() and path.suffix.lower() in _FONT_SUFFIXES
+                )
+                for path in paths:
+                    try:
+                        if path.suffix.lower() in (".ttc", ".otc"):
+                            collection = TTCollection(
+                                str(path), lazy=True
+                            )
+                            try:
+                                fonts = collection.fonts
+                                for font in fonts:
+                                    family = _font_family(font)
+                                    if family is not None:
+                                        families.setdefault(
+                                            family.casefold(), family
+                                        )
+                            finally:
+                                collection.close()
+                        else:
+                            font = TTFont(
+                                str(path), lazy=True, fontNumber=0
+                            )
+                            try:
+                                family = _font_family(font)
+                                if family is not None:
+                                    families.setdefault(
+                                        family.casefold(), family
+                                    )
+                            finally:
+                                font.close()
+                    except Exception:
+                        continue
+            except (OSError, RuntimeError):
+                continue
+    finally:
+        fonttools_logger.handlers = previous_handlers
+        fonttools_logger.propagate = previous_propagate
+    return sorted(
+        families.values(),
+        key=lambda family: (family.casefold(), family),
+    )
+
+
+def installed_font_families() -> List[str]:
+    """Return installed font families, scanning and caching on first use."""
+    global _INSTALLED_FONT_FAMILIES
+    if _INSTALLED_FONT_FAMILIES is None:
+        with _INSTALLED_FONT_FAMILIES_LOCK:
+            if _INSTALLED_FONT_FAMILIES is None:
+                try:
+                    _INSTALLED_FONT_FAMILIES = (
+                        _scan_installed_font_families()
+                    )
+                except Exception:
+                    _INSTALLED_FONT_FAMILIES = []
+    return list(_INSTALLED_FONT_FAMILIES)
 
 
 _PAGE_TEMPLATE = r"""<!doctype html>
@@ -364,6 +494,33 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       font-size: .76rem;
       font-variant-numeric: tabular-nums;
     }
+    .metric-label-type {
+      display: grid;
+      gap: .7rem;
+    }
+    .metric-label-type:disabled {
+      opacity: .55;
+    }
+    .metric-label-type .colour-heading {
+      margin-bottom: 0;
+    }
+    .metric-label-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .7rem;
+    }
+    .metric-label-family {
+      grid-column: 1 / -1;
+    }
+    .metric-label-family-custom {
+      margin-top: .45rem;
+    }
+    .metric-label-family-custom[hidden] {
+      display: none;
+    }
+    .metric-label-family .file-name {
+      margin-bottom: 0;
+    }
     input[type="color"] {
       width: 1.8rem;
       height: 1.55rem;
@@ -579,6 +736,64 @@ _PAGE_TEMPLATE = r"""<!doctype html>
             <label class="check"><input id="kerning" name="kerning" type="checkbox" checked> Apply kerning</label>
           </div>
         </fieldset>
+        <fieldset class="metric-label-type" id="metricLabelType" disabled>
+          <div class="colour-heading">
+            <h2 id="metricLabelTypeHeading">Metric label type</h2>
+            <button class="reset" id="resetLabels" type="button">Reset to preset</button>
+          </div>
+          <div class="metric-label-grid" aria-labelledby="metricLabelTypeHeading">
+            <div class="metric-label-family">
+              <label for="labelFamily">Family</label>
+              <select id="labelFamily" data-label-path="metrics.label_family">
+                <option value="">Preset default</option>
+                <option value="system-ui, sans-serif">System UI</option>
+                <option value="sans-serif">Sans-serif</option>
+                <option value="serif">Serif</option>
+                <option value="monospace">Monospace</option>
+                <option id="installedFontSeparator" disabled>────────── Installed fonts ──────────</option>
+                <option id="customFamilyOption" value="__custom__">Custom…</option>
+              </select>
+              <input class="metric-label-family-custom" id="customLabelFamily" type="text" maxlength="200" placeholder="Futura, sans-serif" aria-label="Custom metric label font family" hidden>
+              <p class="file-name">The SVG references this font by name; a machine without it installed will substitute a fallback when the file is opened elsewhere.</p>
+            </div>
+            <div class="size-control">
+              <div class="size-label-row">
+                <label class="size-label" for="labelSizeSlider">Size</label>
+                <output class="size-value" id="labelSizeValue" for="labelSizeSlider labelSize"></output>
+              </div>
+              <input id="labelSizeSlider" type="range" min="6" max="32" step="0.5" data-label-slider="metrics.label_size">
+              <div class="size-number-row">
+                <input id="labelSize" type="number" min="4" max="72" step="0.5" data-label-path="metrics.label_size" aria-label="Exact metric label size">
+              </div>
+            </div>
+            <div>
+              <label for="labelWeight">Weight</label>
+              <select id="labelWeight" data-label-path="metrics.label_weight">
+                <option value="">Preset default</option>
+                <option value="normal">Normal</option>
+                <option value="bold">Bold</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="300">300</option>
+                <option value="400">400</option>
+                <option value="500">500</option>
+                <option value="600">600</option>
+                <option value="700">700</option>
+                <option value="800">800</option>
+                <option value="900">900</option>
+              </select>
+            </div>
+            <div>
+              <label for="labelStyle">Style</label>
+              <select id="labelStyle" data-label-path="metrics.label_style">
+                <option value="">Preset default</option>
+                <option value="normal">Normal</option>
+                <option value="italic">Italic</option>
+                <option value="oblique">Oblique</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
         <section aria-labelledby="coloursHeading">
           <div class="colour-heading">
             <h2 id="coloursHeading">Colours</h2>
@@ -750,22 +965,34 @@ _PAGE_TEMPLATE = r"""<!doctype html>
   <script>
     const PRESET_COLORS = __PRESET_COLORS__;
     const PRESET_SIZES = __PRESET_SIZES__;
+    const PRESET_LABELS = __PRESET_LABELS__;
     const form = document.querySelector("#controls");
     const preview = document.querySelector("#preview");
     const status = document.querySelector("#status");
     const renderButton = document.querySelector("#renderButton");
     const downloadButton = document.querySelector("#downloadButton");
     const resetColours = document.querySelector("#resetColours");
+    const resetLabels = document.querySelector("#resetLabels");
     const fontFile = document.querySelector("#fontFile");
     const selectedFontName = document.querySelector("#selectedFontName");
     const transparentBackground = document.querySelector("#transparentBackground");
     const fillOutline = document.querySelector("#fillOutline");
     const colorInputs = Array.from(form.querySelectorAll("[data-color-path]"));
     const sizeInputs = Array.from(form.querySelectorAll("[data-size-path]"));
+    const labelInputs = Array.from(form.querySelectorAll("[data-label-path]"));
     const metricControls = Array.from(form.querySelectorAll("[data-metric-control]"));
     const metricNameInputs = Array.from(form.querySelectorAll('input[name="metric_names"]'));
+    const metricLabelType = document.querySelector("#metricLabelType");
     const backgroundInput = form.querySelector('[data-color-path="canvas.background"]');
     const outlineFillInput = form.querySelector('[data-color-path="outline.fill"]');
+    const labelFamily = document.querySelector("#labelFamily");
+    const customLabelFamily = document.querySelector("#customLabelFamily");
+    const customFamilyOption = document.querySelector("#customFamilyOption");
+    const labelSize = document.querySelector("#labelSize");
+    const labelSizeSlider = document.querySelector("#labelSizeSlider");
+    const labelSizeValue = document.querySelector("#labelSizeValue");
+    const labelWeight = document.querySelector("#labelWeight");
+    const labelStyle = document.querySelector("#labelStyle");
     const sizeSliders = Array.from(form.querySelectorAll("[data-size-slider]"));
     const sizeInputsByPath = new Map(
       sizeInputs.map((input) => [input.dataset.sizePath, input])
@@ -780,6 +1007,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     };
     const touchedColors = new Set();
     const touchedSizes = new Set();
+    const touchedLabels = new Set();
     let latestSvg = "";
     let liveRenderTimer = null;
     let renderRequestCounter = 0;
@@ -803,6 +1031,44 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       const input = sizeInputsByPath.get(slider.dataset.sizeSlider);
       input.value = slider.value;
       syncSizeFromNumber(input);
+    }
+
+    function syncLabelSizeFromNumber() {
+      const value = Number(labelSize.value);
+      if (labelSize.value !== "" && Number.isFinite(value)) {
+        labelSizeSlider.value = String(
+          Math.min(
+            Number(labelSizeSlider.max),
+            Math.max(Number(labelSizeSlider.min), value)
+          )
+        );
+      }
+      labelSizeValue.value = labelSize.value || "—";
+    }
+
+    function syncLabelSizeFromSlider() {
+      labelSize.value = labelSizeSlider.value;
+      syncLabelSizeFromNumber();
+    }
+
+    function selectedLabelFamily() {
+      if (labelFamily.value === "__custom__") {
+        return customLabelFamily.value;
+      }
+      return labelFamily.value;
+    }
+
+    function setLabelFamily(value) {
+      const matchingOption = Array.from(labelFamily.options).find(
+        (option) => option.value === value
+      );
+      if (matchingOption) {
+        labelFamily.value = value;
+      } else {
+        labelFamily.value = "__custom__";
+        customLabelFamily.value = value;
+      }
+      customLabelFamily.hidden = labelFamily.value !== "__custom__";
     }
 
     function seedColorsFromPreset() {
@@ -834,20 +1100,36 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       touchedSizes.clear();
     }
 
+    function seedLabelsFromPreset() {
+      const presetLabels = PRESET_LABELS[form.preset.value];
+      if (!presetLabels) return;
+      setLabelFamily(presetLabels["metrics.label_family"]);
+      labelSize.value = presetLabels["metrics.label_size"];
+      syncLabelSizeFromNumber();
+      labelWeight.value = presetLabels["metrics.label_weight"];
+      labelStyle.value = presetLabels["metrics.label_style"];
+      touchedLabels.clear();
+    }
+
     function seedControlsFromPreset() {
       seedColorsFromPreset();
       seedSizesFromPreset();
+      seedLabelsFromPreset();
     }
 
     function updateMetricControls() {
       metricControls.forEach((input) => {
         input.disabled = !form.metrics.checked;
       });
+      metricLabelType.disabled = (
+        !form.metrics.checked || !form.metric_numbers.checked
+      );
     }
 
     function payload() {
       const colors = {};
       const sizes = {};
+      const labels = {};
       colorInputs.forEach((input) => {
         const path = input.dataset.colorPath;
         if (!touchedColors.has(path)) return;
@@ -861,6 +1143,27 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         const path = input.dataset.sizePath;
         if (!touchedSizes.has(path)) return;
         sizes[path] = Number(input.value);
+      });
+      labelInputs.forEach((input) => {
+        const path = input.dataset.labelPath;
+        if (!touchedLabels.has(path)) return;
+        if (path === "metrics.label_family") {
+          if (labelFamily.value === "") return;
+          labels[path] = selectedLabelFamily();
+          return;
+        }
+        if (
+          (path === "metrics.label_weight" ||
+            path === "metrics.label_style") &&
+          input.value === ""
+        ) {
+          return;
+        }
+        labels[path] = (
+          path === "metrics.label_size"
+            ? Number(input.value)
+            : input.value
+        );
       });
       const request = {
         font_path: form.font_path.value,
@@ -881,7 +1184,8 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         apply_kerning: form.kerning.checked,
         fill_enabled: fillOutline.checked,
         colors,
-        sizes
+        sizes,
+        labels
       };
       return request;
     }
@@ -974,6 +1278,25 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       }
     }
 
+    async function loadInstalledFonts() {
+      try {
+        const response = await fetch("/api/fonts");
+        if (!response.ok) return;
+        const result = await response.json();
+        if (!Array.isArray(result.families)) return;
+        const currentFamily = selectedLabelFamily();
+        const options = document.createDocumentFragment();
+        result.families.forEach((family) => {
+          if (typeof family !== "string") return;
+          options.appendChild(new Option(family, family));
+        });
+        labelFamily.insertBefore(options, customFamilyOption);
+        setLabelFamily(currentFamily);
+      } catch (error) {
+        // The generic and custom choices remain usable if discovery fails.
+      }
+    }
+
     colorInputs.forEach((input) => {
       input.addEventListener("input", () => {
         touchedColors.add(input.dataset.colorPath);
@@ -992,6 +1315,28 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         scheduleLiveRender();
       });
     });
+    labelSize.addEventListener("input", () => {
+      touchedLabels.add("metrics.label_size");
+      syncLabelSizeFromNumber();
+    });
+    labelSizeSlider.addEventListener("input", () => {
+      syncLabelSizeFromSlider();
+      touchedLabels.add("metrics.label_size");
+      scheduleLiveRender();
+    });
+    labelFamily.addEventListener("change", () => {
+      customLabelFamily.hidden = labelFamily.value !== "__custom__";
+      touchedLabels.add("metrics.label_family");
+    });
+    customLabelFamily.addEventListener("input", () => {
+      touchedLabels.add("metrics.label_family");
+    });
+    labelWeight.addEventListener("change", () => {
+      touchedLabels.add("metrics.label_weight");
+    });
+    labelStyle.addEventListener("change", () => {
+      touchedLabels.add("metrics.label_style");
+    });
     transparentBackground.addEventListener("change", () => {
       backgroundInput.disabled = transparentBackground.checked;
       touchedColors.add("canvas.background");
@@ -1001,7 +1346,9 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     });
     form.preset.addEventListener("change", seedControlsFromPreset);
     resetColours.addEventListener("click", seedControlsFromPreset);
+    resetLabels.addEventListener("click", seedLabelsFromPreset);
     form.metrics.addEventListener("change", updateMetricControls);
+    form.metric_numbers.addEventListener("change", updateMetricControls);
     form.addEventListener("submit", renderBlueprint);
     fontFile.addEventListener("change", uploadFont);
     downloadButton.addEventListener("click", () => {
@@ -1016,6 +1363,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
 
     seedControlsFromPreset();
     updateMetricControls();
+    loadInstalledFonts();
     renderBlueprint();
   </script>
 </body>
@@ -1028,6 +1376,7 @@ def _preview_page() -> str:
     options = []
     preset_colors = {}
     preset_sizes = {}
+    preset_labels = {}
     for name in presets:
         selected = " selected" if name == "blueprint" else ""
         options.append(
@@ -1048,6 +1397,10 @@ def _preview_page() -> str:
             path: resolved.get_path(path)
             for path in _SIZE_LIMITS
         }
+        preset_labels[name] = {
+            path: resolved.get_path(path)
+            for path in _LABEL_PATHS
+        }
 
     colors_json = json.dumps(
         preset_colors,
@@ -1059,11 +1412,17 @@ def _preview_page() -> str:
         sort_keys=True,
         separators=(",", ":"),
     ).replace("<", "\\u003c")
+    labels_json = json.dumps(
+        preset_labels,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).replace("<", "\\u003c")
     return (
         _PAGE_TEMPLATE
         .replace("__PRESET_OPTIONS__", "\n              ".join(options))
         .replace("__PRESET_COLORS__", colors_json)
         .replace("__PRESET_SIZES__", sizes_json)
+        .replace("__PRESET_LABELS__", labels_json)
     )
 
 
@@ -1140,6 +1499,62 @@ def _sizes(payload: Dict[str, Any]) -> Dict[str, float]:
             0.0,
             _SIZE_LIMITS[key],
         )
+    return overrides
+
+
+def _labels(payload: Dict[str, Any]) -> Dict[str, Any]:
+    values = payload.get("labels", {})
+    if not isinstance(values, dict):
+        raise ValueError(
+            "labels must be an object mapping style paths to values"
+        )
+
+    overrides: Dict[str, Any] = {}
+    for key in values:
+        if key not in _LABEL_PATH_SET:
+            raise ValueError("unknown label key {!r}".format(key))
+
+    for key, value in values.items():
+        if key == "metrics.label_family":
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    "{} must be a non-empty string".format(key)
+                )
+            if len(value) > 200:
+                raise ValueError(
+                    "{} must be 200 characters or fewer".format(key)
+                )
+            if (
+                "<" in value
+                or ">" in value
+                or _CONTROL_CHARACTER.search(value) is not None
+            ):
+                raise ValueError(
+                    "{} must not contain <, >, or control characters".format(
+                        key
+                    )
+                )
+            overrides[key] = value.strip()
+        elif key == "metrics.label_size":
+            if isinstance(value, bool) or not isinstance(
+                value, (int, float)
+            ):
+                raise ValueError("{} must be a number".format(key))
+            overrides[key] = _number(values, key, 0.0, 4.0, 72.0)
+        elif key == "metrics.label_weight":
+            if not isinstance(value, str) or value not in _LABEL_WEIGHTS:
+                raise ValueError(
+                    "{} must be one of normal, bold, or 100 through 900".format(
+                        key
+                    )
+                )
+            overrides[key] = value
+        elif key == "metrics.label_style":
+            if not isinstance(value, str) or value not in _LABEL_STYLES:
+                raise ValueError(
+                    "{} must be one of normal, italic, or oblique".format(key)
+                )
+            overrides[key] = value
     return overrides
 
 
@@ -1258,6 +1673,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     apply_kerning = _boolean(payload, "apply_kerning", True)
     colors = _colors(payload)
     sizes = _sizes(payload)
+    labels = _labels(payload)
 
     overrides = {
         "canvas": {"frame": frame, "width": width},
@@ -1271,6 +1687,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
     overrides.update(colors)
     overrides.update(sizes)
+    overrides.update(labels)
     if "fill_enabled" in payload:
         overrides["outline.fill_enabled"] = _boolean(
             payload, "fill_enabled", False
@@ -1360,6 +1777,12 @@ class PreviewHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/health":
             self._json(200, {"status": "ok"})
+            return
+        if self.path == "/api/fonts":
+            self._json(
+                200,
+                {"families": installed_font_families()},
+            )
             return
         self._json(404, {"error": "not found"})
 

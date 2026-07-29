@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import errno
 import json
 import re
 import socket
 import threading
-import urllib.error
-import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import quote
@@ -20,7 +19,6 @@ from glyphblueprint.web import (
     _UPLOAD_DIRECTORY,
     _preview_page,
     PreviewHandler,
-    create_server,
     main,
     render_request,
 )
@@ -47,18 +45,8 @@ def _payload(**changes):
     return payload
 
 
-def _post_upload(body, filename, content_length=None):
-    """Exercise one raw HTTP upload without binding a network port."""
-    length = len(body) if content_length is None else content_length
-    request = (
-        "POST /api/upload HTTP/1.0\r\n"
-        "Host: localhost\r\n"
-        "Connection: close\r\n"
-        "Content-Type: application/octet-stream\r\n"
-        "X-Filename: {}\r\n"
-        "Content-Length: {}\r\n"
-        "\r\n"
-    ).format(quote(filename, safe=""), length).encode("ascii") + body
+def _exchange(request):
+    """Exercise one raw HTTP request without binding a network port."""
     server_side, client_side = socket.socketpair()
     thread = threading.Thread(
         target=PreviewHandler,
@@ -85,7 +73,63 @@ def _post_upload(body, filename, content_length=None):
         server_side.close()
         client_side.close()
     status = int(status_line.split()[1])
+    return status, headers, response_body
+
+
+def _post_upload(body, filename, content_length=None):
+    """Exercise one raw HTTP upload without binding a network port."""
+    length = len(body) if content_length is None else content_length
+    request = (
+        "POST /api/upload HTTP/1.0\r\n"
+        "Host: localhost\r\n"
+        "Connection: close\r\n"
+        "Content-Type: application/octet-stream\r\n"
+        "X-Filename: {}\r\n"
+        "Content-Length: {}\r\n"
+        "\r\n"
+    ).format(quote(filename, safe=""), length).encode("ascii") + body
+    status, _, response_body = _exchange(request)
     return status, json.loads(response_body.decode("utf-8"))
+
+
+def _get(path, parse_json=True):
+    request = (
+        "GET {} HTTP/1.0\r\n"
+        "Host: localhost\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).format(path).encode("ascii")
+    status, _, response_body = _exchange(request)
+    decoded = response_body.decode("utf-8")
+    return status, json.loads(decoded) if parse_json else decoded
+
+
+def _post_render(payload):
+    body = json.dumps(payload).encode("utf-8")
+    request = (
+        "POST /api/render HTTP/1.0\r\n"
+        "Host: localhost\r\n"
+        "Connection: close\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: {}\r\n"
+        "\r\n"
+    ).format(len(body)).encode("ascii") + body
+    status, _, response_body = _exchange(request)
+    return status, json.loads(response_body.decode("utf-8"))
+
+
+def test_fonts_endpoint_returns_sorted_visible_family_names() -> None:
+    status, result = _get("/api/fonts")
+
+    assert status == 200
+    families = result["families"]
+    assert isinstance(families, list)
+    assert all(isinstance(family, str) for family in families)
+    assert all(not family.startswith(".") for family in families)
+    assert families == sorted(
+        families,
+        key=lambda family: (family.casefold(), family),
+    )
 
 
 def test_upload_round_trip_can_render_the_uploaded_font() -> None:
@@ -373,6 +417,99 @@ def test_omitted_metric_fields_keep_all_guides_lines_and_numbers() -> None:
         element.get("data-metric")
         for element in _metric_elements(root, "text")
     } == set(METRIC_NAMES)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "attribute", "expected"),
+    [
+        (
+            "metrics.label_family",
+            "Futura, sans-serif",
+            "font-family",
+            "Futura, sans-serif",
+        ),
+        ("metrics.label_size", 18.5, "font-size", "18.5"),
+        ("metrics.label_weight", "700", "font-weight", "700"),
+        ("metrics.label_style", "italic", "font-style", "italic"),
+    ],
+)
+def test_each_metric_label_override_reaches_rendered_svg(
+    path, value, attribute, expected
+) -> None:
+    baseline = ET.fromstring(
+        render_request(_payload(shape="", labels={}))["svg"]
+    )
+    changed = ET.fromstring(
+        render_request(
+            _payload(shape="", labels={path: value})
+        )["svg"]
+    )
+    baseline_values = {
+        element.get(attribute)
+        for element in _metric_elements(baseline, "text")
+    }
+    changed_values = {
+        element.get(attribute)
+        for element in _metric_elements(changed, "text")
+    }
+
+    assert changed_values == {expected}
+    assert baseline_values != changed_values
+
+
+def test_render_request_rejects_unknown_label_key() -> None:
+    key = "metrics.label_variant"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(labels={key: "small-caps"}))
+
+    assert str(caught.value) == "unknown label key {!r}".format(key)
+
+
+def test_render_request_rejects_unsafe_label_family() -> None:
+    path = "metrics.label_family"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(labels={path: "Futura<svg"}))
+
+    assert path in str(caught.value)
+    assert "<" in str(caught.value)
+
+
+def test_render_request_rejects_out_of_range_label_size() -> None:
+    path = "metrics.label_size"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(labels={path: 72.5}))
+
+    assert str(caught.value) == "{} must be between 4 and 72".format(path)
+
+
+def test_render_request_rejects_invalid_label_weight() -> None:
+    path = "metrics.label_weight"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(labels={path: "heavy"}))
+
+    assert path in str(caught.value)
+    assert "normal, bold, or 100 through 900" in str(caught.value)
+
+
+def test_render_request_rejects_invalid_label_style() -> None:
+    path = "metrics.label_style"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(labels={path: "slanted"}))
+
+    assert path in str(caught.value)
+    assert "normal, italic, or oblique" in str(caught.value)
+
+
+def test_omitting_labels_entirely_leaves_output_unchanged() -> None:
+    request = _payload(shape="")
+    assert "labels" not in request
+
+    without_labels = render_request(request)["svg"]
+    with_empty_labels = render_request(
+        dict(request, labels={})
+    )["svg"]
+
+    assert without_labels == with_empty_labels
 
 
 @pytest.mark.parametrize(
@@ -718,7 +855,8 @@ def test_preview_page_seeds_and_tracks_every_size_control() -> None:
 def test_preview_page_has_nine_documented_size_sliders() -> None:
     page = _preview_page()
     tags = re.findall(
-        r'<input\b(?=[^>]*\btype="range")[^>]*>',
+        r'<input\b(?=[^>]*\btype="range")'
+        r'(?=[^>]*\bdata-size-slider=")[^>]*>',
         page,
     )
     sliders = {}
@@ -753,6 +891,57 @@ def test_preview_page_has_nine_documented_size_sliders() -> None:
         assert attributes["max"] == (
             "20" if path.endswith(".size") else "10"
         )
+
+
+def test_preview_page_seeds_and_tracks_metric_label_controls() -> None:
+    page = _preview_page()
+    match = re.search(r"const PRESET_LABELS = (\{.*\});", page)
+
+    assert match is not None
+    preset_labels = json.loads(match.group(1))
+    paths = {
+        "metrics.label_family",
+        "metrics.label_size",
+        "metrics.label_weight",
+        "metrics.label_style",
+    }
+    assert set(preset_labels) == set(available_presets())
+    for preset in available_presets():
+        resolved = resolve_style(preset=preset)
+        assert preset_labels[preset] == {
+            path: resolved.get_path(path)
+            for path in paths
+        }
+    for path in paths:
+        assert 'data-label-path="{}"'.format(path) in page
+
+    label_slider = re.search(
+        r'<input\b(?=[^>]*\bid="labelSizeSlider")'
+        r'(?=[^>]*\btype="range")[^>]*>',
+        page,
+    )
+    assert label_slider is not None
+    slider_attributes = dict(
+        re.findall(r'([\w-]+)="([^"]*)"', label_slider.group(0))
+    )
+    assert slider_attributes["min"] == "6"
+    assert slider_attributes["max"] == "32"
+    assert slider_attributes["step"] == "0.5"
+    assert 'id="labelSize" type="number" min="4" max="72" step="0.5"' in page
+    assert "const touchedLabels = new Set();" in page
+    assert "if (!touchedLabels.has(path)) return;" in page
+    assert "touchedLabels.clear();" in page
+    assert 'fetch("/api/fonts")' in page
+    assert "Custom…" in page
+    assert "System UI" in page
+    assert "Sans-serif" in page
+    assert "Serif" in page
+    assert "Monospace" in page
+    assert "a machine without it installed will substitute a fallback" in page
+    assert (
+        "!form.metrics.checked || !form.metric_numbers.checked"
+        in page
+    )
 
 
 def test_preview_page_debounces_slider_renders_and_drops_stale_responses() -> None:
@@ -818,58 +1007,26 @@ def test_render_request_rejects_invalid_input(change, problem) -> None:
 
 
 def test_http_server_serves_page_health_and_render_endpoint() -> None:
-    server = create_server(port=0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    base = "http://127.0.0.1:{}".format(server.server_address[1])
-    try:
-        with urllib.request.urlopen(base + "/", timeout=5) as response:
-            page = response.read().decode("utf-8")
-        assert response.status == 200
-        assert "glyphblueprint" in page
-        assert "/api/render" in page
+    page_status, page = _get("/", parse_json=False)
+    assert page_status == 200
+    assert "glyphblueprint" in page
+    assert "/api/render" in page
 
-        with urllib.request.urlopen(base + "/health", timeout=5) as response:
-            health = json.load(response)
-        assert health == {"status": "ok"}
+    health_status, health = _get("/health")
+    assert health_status == 200
+    assert health == {"status": "ok"}
 
-        request = urllib.request.Request(
-            base + "/api/render",
-            data=json.dumps(_payload(text="Ao")).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=10) as response:
-            rendered = json.load(response)
-        assert response.status == 200
-        assert rendered["summary"]["glyphs"] == 2
-        ET.fromstring(rendered["svg"])
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+    render_status, rendered = _post_render(_payload(text="Ao"))
+    assert render_status == 200
+    assert rendered["summary"]["glyphs"] == 2
+    ET.fromstring(rendered["svg"])
 
 
 def test_http_server_returns_json_error() -> None:
-    server = create_server(port=0)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    request = urllib.request.Request(
-        "http://127.0.0.1:{}/api/render".format(server.server_address[1]),
-        data=json.dumps(_payload(text="")).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with pytest.raises(urllib.error.HTTPError) as caught:
-            urllib.request.urlopen(request, timeout=5)
-        assert caught.value.code == 400
-        body = json.loads(caught.value.read().decode("utf-8"))
-        assert body["error"] == "text is required"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+    status, body = _post_render(_payload(text=""))
+
+    assert status == 400
+    assert body["error"] == "text is required"
 
 
 def test_marker_shape_defaults_to_the_preset_so_corner_and_smooth_differ():
@@ -914,16 +1071,19 @@ def test_marker_shape_defaults_to_the_preset_so_corner_and_smooth_differ():
     assert shapes == {"polygon"}
 
 
-def test_preview_reports_a_busy_port_without_a_traceback(capsys):
+def test_preview_reports_a_busy_port_without_a_traceback(
+    capsys, monkeypatch
+):
     """Re-running the preview while one is open is the likeliest failure."""
-    from glyphblueprint.web import create_server, main
+    import glyphblueprint.web as web
 
-    server = create_server("127.0.0.1", 0)
-    port = server.server_address[1]
-    try:
-        code = main(["--port", str(port)])
-    finally:
-        server.server_close()
+    def busy_server(host, port):
+        raise OSError(errno.EADDRINUSE, "Address already in use")
+
+    monkeypatch.setattr(web, "create_server", busy_server)
+    port = 8765
+    code = main(["--port", str(port)])
+
     assert code == 2
     err = capsys.readouterr().err
     assert "already in use" in err
