@@ -283,6 +283,38 @@ def test_resvg_png_command_includes_width_before_input_and_output(
     assert backend == "resvg"
 
 
+def test_resvg_reads_a_closed_temporary_file_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "image.png"
+    observed = []
+    monkeypatch.setattr(raster, "_load_cairosvg", lambda: None)
+    monkeypatch.setattr(
+        raster,
+        "_find_command",
+        lambda name: "resvg.exe" if name == "resvg" else None,
+    )
+    monkeypatch.setattr(
+        raster.tempfile,
+        "NamedTemporaryFile",
+        lambda *args, **kwargs: pytest.fail(
+            "an open NamedTemporaryFile is not readable by resvg on Windows"
+        ),
+        raising=False,
+    )
+
+    def inspect_source(command, payload, backend):
+        source = Path(command[-2])
+        observed.append((source.read_bytes(), payload, backend))
+
+    monkeypatch.setattr(raster, "_run_backend", inspect_source)
+
+    raster.svg_to_png("<svg/>", destination)
+
+    assert observed == [(b"<svg/>", b"", "resvg")]
+
+
 @pytest.mark.parametrize(
     ("exporter_name", "format_name", "width"),
     [

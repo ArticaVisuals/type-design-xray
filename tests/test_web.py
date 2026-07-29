@@ -181,6 +181,37 @@ def test_upload_strips_traversal_components_from_filename() -> None:
     assert uploaded_path.read_bytes() == EXAMPLE.read_bytes()
 
 
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("font:alternate.ttf", "font-alternate.ttf"),
+        ("font?.otf", "font-.otf"),
+        ("con .ttf", "_con .ttf"),
+        ("con.notes.ttf", "_con.notes.ttf"),
+        ("CONIN$.woff2", "_CONIN$.woff2"),
+        ("LPT².ttf", "_LPT².ttf"),
+    ],
+)
+def test_upload_normalises_filenames_windows_cannot_create(
+    filename: str,
+    expected: str,
+) -> None:
+    status, uploaded = _post_upload(b"font", filename)
+
+    assert status == 200
+    assert uploaded["name"] == expected
+    assert Path(uploaded["font_path"]).name == expected
+
+
+def test_upload_truncates_long_filenames_for_legacy_windows_paths() -> None:
+    filename = "{}.ttf".format("a" * 300)
+    status, uploaded = _post_upload(b"font", filename)
+
+    assert status == 200
+    assert len(uploaded["name"]) == 120
+    assert uploaded["name"].endswith(".ttf")
+
+
 def test_render_request_returns_valid_svg_and_summary() -> None:
     result = render_request(_payload())
     root = ET.fromstring(result["svg"])
@@ -1195,6 +1226,26 @@ def test_preview_reports_a_busy_port_without_a_traceback(
     assert "already in use" in err
     assert "--port" in err
     assert "Traceback" not in err
+
+
+def test_preview_recognises_windows_busy_port_error(
+    capsys, monkeypatch
+) -> None:
+    import typedesignxray.web as web
+
+    def busy_server(host, port):
+        error = OSError("Only one usage of each socket address is permitted")
+        error.errno = 10048
+        raise error
+
+    monkeypatch.setattr(web, "create_server", busy_server)
+
+    assert main(["--host", "::1", "--port", "65535"]) == 2
+    err = capsys.readouterr().err
+    assert "already in use" in err
+    assert "http://[::1]:65535/" in err
+    assert "--port 8765" in err
+    assert "--port 65536" not in err
 
 
 def test_preview_rejects_an_out_of_range_port_cleanly(capsys):

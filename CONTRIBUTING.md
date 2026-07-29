@@ -5,12 +5,63 @@ most contributions touch exactly one module.
 
 ## Getting set up
 
-```bash
+You need Python 3.9 or newer. Clone the repository, then run the commands for
+your shell. Run each line separately and wait for it to succeed before running
+the next one; do not paste several commands joined on one line.
+
+These first two commands are the same in a POSIX shell and PowerShell:
+
+```text
 git clone https://github.com/ArticaVisuals/type-design-xray
 cd type-design-xray
+```
+
+### macOS or Linux (POSIX shell)
+
+```bash
+python3 --version
 python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev,raster]"
-.venv/bin/python -m pytest
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e ".[dev,compound]"
+.venv/bin/python -m pytest -q
+```
+
+### Windows (PowerShell)
+
+```powershell
+py -3 --version
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,compound]"
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+If PowerShell says that `py` is not recognized, install Python 3.9 or newer
+from [python.org](https://www.python.org/downloads/windows/), including the
+Python launcher. Do not substitute `python3` on Windows, and do not use the
+POSIX `.venv/bin/` path there. These commands call the virtual environment
+directly, so activation and PowerShell execution-policy changes are not needed.
+
+The `compound` extra enables the overlap-removal tests. PNG/PDF backends are
+not required for the normal test suite; see the README if you are specifically
+working on raster export.
+
+### One-command smoke check
+
+After installation, this exercises the installed CLI, bundled UFO parser,
+layout, and SVG renderer together. It should create `smoke-test.svg` and print
+a one-line summary.
+
+macOS or Linux:
+
+```bash
+.venv/bin/python -m typedesignxray.cli examples/Roboto-Regular-subset.ufo "Type" --out smoke-test.svg
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m typedesignxray.cli examples/Roboto-Regular-subset.ufo "Type" --out smoke-test.svg
 ```
 
 ## The architecture, in one paragraph
@@ -52,9 +103,10 @@ use `ir.infer_smooth` — and add a line to the README's known-limitations table
 
 ## Tests
 
-`pytest` at the root. Tests that depend on a font file that is not in the repo
-must `pytest.skip` when it is absent, so a fresh clone stays green. Anything
-that can be synthesised should be synthesised into `tests/fixtures/`.
+Run the platform-specific `python -m pytest -q` command above from the
+repository root. Tests that depend on a font file that is not in the repo must
+`pytest.skip` when it is absent, so a fresh clone stays green. Anything that can
+be synthesised should be synthesised into `tests/fixtures/`.
 
 ## Style
 

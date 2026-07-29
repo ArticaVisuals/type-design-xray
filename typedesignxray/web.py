@@ -12,6 +12,7 @@ import math
 import os
 import re
 import shutil
+import socket
 import sys
 import tempfile
 import threading
@@ -1656,10 +1657,14 @@ def _font_path(value: str) -> Path:
 
 #: Windows refuses these as filenames even with an extension.
 _WINDOWS_RESERVED_NAMES = frozenset(
-    ["CON", "PRN", "AUX", "NUL"]
+    ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"]
     + ["COM{}".format(i) for i in range(1, 10)]
     + ["LPT{}".format(i) for i in range(1, 10)]
+    + ["COM{}".format(i) for i in ("¹", "²", "³")]
+    + ["LPT{}".format(i) for i in ("¹", "²", "³")]
 )
+_WINDOWS_INVALID_FILENAME = re.compile(r'[<>:"|?*\x00-\x1f]')
+_MAX_UPLOAD_FILENAME_LENGTH = 120
 
 
 def _upload_basename(encoded_name: str) -> str:
@@ -1672,6 +1677,7 @@ def _upload_basename(encoded_name: str) -> str:
     basename = decoded.replace("\\", "/").rsplit("/", 1)[-1]
     if not basename or basename in (".", "..") or "\x00" in basename:
         raise ValueError("X-Filename must contain a valid filename")
+    basename = _WINDOWS_INVALID_FILENAME.sub("-", basename).rstrip(" .")
     suffix = Path(basename).suffix.lower()
     if suffix not in _UPLOAD_FONT_SUFFIXES:
         raise ValueError(
@@ -1682,8 +1688,13 @@ def _upload_basename(encoded_name: str) -> str:
         )
     # A file literally named "con.ttf" is legal on macOS and Linux but names a
     # character device on Windows, where writing it would not produce a file.
-    if Path(basename).stem.upper() in _WINDOWS_RESERVED_NAMES:
+    device_name = basename.split(".", 1)[0].rstrip(" .").upper()
+    if device_name in _WINDOWS_RESERVED_NAMES:
         basename = "_{}".format(basename)
+    stem = Path(basename).stem
+    if len(basename) > _MAX_UPLOAD_FILENAME_LENGTH:
+        stem_limit = _MAX_UPLOAD_FILENAME_LENGTH - len(suffix)
+        basename = "{}{}".format(stem[:stem_limit], suffix)
     return basename
 
 
@@ -1935,7 +1946,18 @@ def create_server(
     host: str = "127.0.0.1", port: int = 8765
 ) -> ThreadingHTTPServer:
     """Create, but do not start, a localhost preview server."""
+    if ":" in host:
+        class IPv6PreviewServer(ThreadingHTTPServer):
+            address_family = socket.AF_INET6
+
+        return IPv6PreviewServer((host, port), PreviewHandler)
     return ThreadingHTTPServer((host, port), PreviewHandler)
+
+
+def _url_host(host: str) -> str:
+    if ":" in host and not host.startswith("["):
+        return "[{}]".format(host)
+    return host
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -1961,16 +1983,34 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except OSError as exc:
         # Re-running the preview while one is already open is the single most
         # likely failure here, and a socket traceback is a poor way to say so.
-        if exc.errno == errno.EADDRINUSE:
+        error_codes = {
+            code
+            for code in (exc.errno, getattr(exc, "winerror", None))
+            if code is not None
+        }
+        address_in_use_codes = {
+            errno.EADDRINUSE,
+            getattr(errno, "WSAEADDRINUSE", 10048),
+        }
+        permission_codes = {
+            errno.EACCES,
+            errno.EPERM,
+            getattr(errno, "WSAEACCES", 10013),
+        }
+        if error_codes.intersection(address_in_use_codes):
+            next_port = args.port + 1 if args.port < 65535 else 8765
             print(
                 "type-design-xray-preview: error: port {} is already in use. "
                 "A preview may already be running at http://{}:{}/ — open "
                 "that, or start this one on another port with --port {}.".format(
-                    args.port, args.host, args.port, args.port + 1
+                    args.port,
+                    _url_host(args.host),
+                    args.port,
+                    next_port,
                 ),
                 file=sys.stderr,
             )
-        elif exc.errno in (errno.EACCES, errno.EPERM):
+        elif error_codes.intersection(permission_codes):
             print(
                 "type-design-xray-preview: error: not allowed to listen on port "
                 "{}. Ports below 1024 need elevated privileges; try "
@@ -1985,7 +2025,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         return 2
     host, port = server.server_address[:2]
-    print("Type Design X-Ray preview: http://{}:{}/".format(host, port), flush=True)
+    print(
+        "Type Design X-Ray preview: http://{}:{}/".format(
+            _url_host(host), port
+        ),
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -36,16 +36,8 @@ animated.
 
 ## Download and set up
 
-You need **Python 3.9 or newer**. On macOS and most Linux systems it is already
-there — check by opening a terminal and running:
-
-```bash
-python3 --version
-```
-
-If that prints a version number you are ready. (On Windows, install Python from
-[python.org](https://www.python.org/downloads/) and tick "Add Python to PATH",
-then use `python` instead of `python3` in the commands below.)
+You need **Python 3.9 or newer**. Every command below comes in two versions —
+use the one for your system.
 
 **Step 1 — download the project.**
 
@@ -57,52 +49,120 @@ cd type-design-xray
 No `git`? Download the ZIP from the green **Code** button on GitHub, unzip it,
 and `cd` into the folder instead.
 
-**Step 2 — create an isolated environment and install.**
+**Step 2 — create an isolated environment.** This keeps Type Design X-Ray and
+its dependencies out of your system Python, so nothing else on your machine is
+affected.
 
-This keeps type-design-xray and its dependencies out of your system Python, so
-nothing else on your machine is affected.
+macOS / Linux:
 
 ```bash
 python3 -m venv .venv
+```
+
+Windows (PowerShell):
+
+```powershell
+py -3 -m venv .venv
+```
+
+If `py` is unavailable but `python --version` reports Python 3.9 or newer, use
+`python -m venv .venv` instead.
+
+**Step 3 — install it.**
+
+macOS / Linux:
+
+```bash
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install ".[compound]"
 ```
 
-On Windows the paths use backslashes: `.venv\Scripts\python -m pip install ".[compound]"`.
+Windows (PowerShell):
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install ".[compound]"
+```
 
 The `[compound]` part adds overlap removal (the `--compound` option). Leave it
-off if you don't need it — plain `pip install .` works fine.
+off if you don't need it by replacing `".[compound]"` with `"."`.
 
-**Step 3 — check it works.** This should write an SVG and print a one-line
-summary:
+**Step 4 — check it works.** This should write an SVG and print a one-line
+summary.
+
+macOS / Linux:
 
 ```bash
 .venv/bin/type-design-xray examples/Roboto-Regular-subset.ufo "Type" --out blueprint.svg
 ```
 
+Windows (PowerShell):
+
+```powershell
+.\.venv\Scripts\type-design-xray.exe examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg
+```
+
 Open `blueprint.svg` in a browser, Illustrator, or Figma.
+
+> **Copy one block at a time.** Pasting several commands as a single line will
+> run them joined together and fail.
+
+### If something goes wrong
+
+**`Python was not found; run without arguments to install from the Microsoft
+Store`** — you are on Windows and typed `python3`. Windows ships a stub for that
+name which does nothing useful. Use `py` instead, as in the Windows commands
+above. If `py` is also missing, install Python from
+[python.org](https://www.python.org/downloads/) and tick **"Add Python to
+PATH"** during setup.
+
+**`The term '.venv/bin/python' is not recognized`** — that is the macOS path on
+a Windows machine. Windows puts the environment in `.\.venv\Scripts\`; use the
+PowerShell command from step 3 exactly.
+
+**`No such file or directory: .venv/bin/python`** — step 2 did not actually
+create the environment. Scroll up and check it succeeded before continuing.
+
+**`'type-design-xray' is not recognized`** — you are missing the `.venv/bin/`
+(or `.\.venv\Scripts\`) prefix, or the environment is not activated. See below.
 
 ### Activating it in later sessions
 
-The `.venv/bin/` prefix above always works and needs no activation. If you'd
-rather type just `type-design-xray` (or the short alias `tdxray`),
-activate the environment first:
+The `.venv/bin/` and `.\.venv\Scripts\` prefixes always work and need no
+activation. If you would rather type just `type-design-xray` (or the short alias
+`tdxray`), activate the environment first.
+
+macOS / Linux:
 
 ```bash
-cd type-design-xray
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-type-design-xray --version
+source .venv/bin/activate
 ```
 
-Run `deactivate` to leave. You'll need to activate again in each new terminal —
-which is why the `.venv/bin/` form is often simpler.
+Windows (PowerShell):
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Then `type-design-xray --version` works directly. Run `deactivate` to leave.
+You will need to activate again in each new terminal. If PowerShell blocks
+`Activate.ps1`, activation is optional: use the full `.\.venv\Scripts\...`
+commands from steps 3 and 4 instead.
 
 ### Local browser preview
 
 The fastest way to try it. Start the preview:
 
+macOS / Linux:
+
 ```bash
 .venv/bin/type-design-xray-preview
+```
+
+Windows (PowerShell):
+
+```powershell
+.\.venv\Scripts\type-design-xray-preview.exe
 ```
 
 Then open **[http://127.0.0.1:8765/](http://127.0.0.1:8765/)** in your browser
@@ -145,40 +205,26 @@ It gives you, live:
 
 Use `--port` if 8765 is taken.
 
-### Windows
+### Windows export notes
 
-Everything except PNG/PDF export works on Windows. Use backslash paths for the
-environment:
-
-```
-python -m venv .venv
-.venv\Scripts\python -m pip install ".[compound]"
-.venv\Scripts\type-design-xray examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg
-.venv\Scripts\type-design-xray-preview
-```
+The core SVG workflow, overlap removal, and local preview work on Windows.
+Every push and pull request is tested on Windows and macOS before release.
 
 `skia-pathops` (for `--compound`) ships Windows wheels, so it installs cleanly.
 **`cairosvg` does not** — it needs the Cairo native library, which on Windows
-means installing GTK runtime DLLs by hand. If you want PNG or PDF there, the
-easier route is [`resvg`](https://github.com/linebender/resvg/releases): drop
-`resvg.exe` on your `PATH` and the exporter will find and use it. SVG export
-needs none of this.
-
-The tool is developed and tested on macOS; the Windows path is written for but
-not continuously tested, so please open an issue if something misbehaves.
+means installing GTK runtime DLLs by hand. For PNG, the easier route is
+[`resvg`](https://github.com/linebender/resvg/releases): put `resvg.exe` on
+your `PATH` and the exporter will find it. PDF still needs CairoSVG or
+`rsvg-convert`. SVG export needs none of these.
 
 ### Optional: PNG and PDF export
 
-SVG export needs nothing extra. PNG and PDF need a rendering backend:
-
-```bash
-pip install "type-design-xray[raster]"
-```
-
-On macOS that also needs the Cairo system library, which Homebrew provides:
+SVG export needs nothing extra. On macOS, install the Cairo system library and
+then the optional local extra:
 
 ```bash
 brew install cairo
+.venv/bin/python -m pip install ".[raster]"
 ```
 
 If no backend is installed, `--format png` prints exactly what to install and
@@ -324,11 +370,9 @@ type-design-xray MyFont.glyphs "f" --compound --out f.svg
 Left: the source, two overlapping contours. Right: compounded, one contour with
 new nodes where the crossbar meets the stem.
 
-`--remove-overlap` is an alias for the same option. It needs the extra:
-
-```bash
-pip install "type-design-xray[compound]"
-```
+`--remove-overlap` is an alias for the same option. It needs the `compound`
+extra installed in step 3. If you initially left that extra off, rerun the
+matching macOS/Linux or Windows step 3 command with `".[compound]"`.
 
 This uses `skia-pathops`, the same engine `fontmake` uses for overlap removal,
 so results match a real export. Two things worth knowing:
@@ -485,15 +529,9 @@ Type Design X-Ray itself is MIT; the bundled excerpt keeps its own licence.
 
 ## Development
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
-.venv/bin/python -m pytest
-```
-
-Architecture and the rules each layer relies on are in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); contribution notes are in
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
+Use the platform-specific setup and test commands in
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture and the rules each layer
+relies on are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## License
 

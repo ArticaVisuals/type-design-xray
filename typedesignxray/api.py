@@ -115,10 +115,13 @@ def _normalise_formats(formats: Iterable[str]) -> Tuple[str, ...]:
 #: character devices. Typing "con" or "aux" as sample text is entirely
 #: plausible, and on Windows the write would silently go to the device.
 _WINDOWS_RESERVED_NAMES = frozenset(
-    ["CON", "PRN", "AUX", "NUL"]
+    ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"]
     + ["COM{}".format(i) for i in range(1, 10)]
     + ["LPT{}".format(i) for i in range(1, 10)]
+    + ["COM{}".format(i) for i in ("¹", "²", "³")]
+    + ["LPT{}".format(i) for i in ("¹", "²", "³")]
 )
+_WINDOWS_INVALID_FILENAME = re.compile(r'[<>:"|?*\x00-\x1f]')
 
 
 def _safe_filename(value: str) -> str:
@@ -129,6 +132,33 @@ def _safe_filename(value: str) -> str:
         return cleaned[:80]
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:10]
     return "glyph-{}".format(digest)
+
+
+def _validate_output_path(path: Path) -> None:
+    """Reject output filenames that Windows redirects or cannot create."""
+    name = path.name
+    if (
+        not name
+        or name.endswith((" ", "."))
+        or _WINDOWS_INVALID_FILENAME.search(name) is not None
+    ):
+        raise ValueError(
+            "output filename {!r} is not portable to Windows".format(name)
+        )
+    device_name = name.split(".", 1)[0].rstrip(" .").upper()
+    if device_name in _WINDOWS_RESERVED_NAMES:
+        raise ValueError(
+            "output filename {!r} uses the reserved Windows device name "
+            "{!r}".format(name, device_name)
+        )
+
+
+def _validated_plan(
+    plan: List[Tuple[str, str, Path]]
+) -> List[Tuple[str, str, Path]]:
+    for _, _, path in plan:
+        _validate_output_path(path)
+    return plan
 
 
 def _single_layout(
@@ -223,7 +253,7 @@ def _output_plan(
                         destination / "{}.{}".format(label, format_name),
                     )
                 )
-        return plan
+        return _validated_plan(plan)
 
     first_format = format_names[0]
     first_suffix = destination.suffix.lower()
@@ -250,7 +280,7 @@ def _output_plan(
                     "{}-{}.{}".format(base, glyph_label, format_name)
                 )
             plan.append((format_name, svg, path))
-    return plan
+    return _validated_plan(plan)
 
 
 def _attach_written_paths(exc: Exception, paths: Sequence[Path]) -> None:
