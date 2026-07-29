@@ -1654,6 +1654,14 @@ def _font_path(value: str) -> Path:
     return path
 
 
+#: Windows refuses these as filenames even with an extension.
+_WINDOWS_RESERVED_NAMES = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + ["COM{}".format(i) for i in range(1, 10)]
+    + ["LPT{}".format(i) for i in range(1, 10)]
+)
+
+
 def _upload_basename(encoded_name: str) -> str:
     if not encoded_name:
         raise ValueError("X-Filename header is required")
@@ -1672,6 +1680,10 @@ def _upload_basename(encoded_name: str) -> str:
                 ", ".join(sorted(_UPLOAD_FONT_SUFFIXES)),
             )
         )
+    # A file literally named "con.ttf" is legal on macOS and Linux but names a
+    # character device on Windows, where writing it would not produce a file.
+    if Path(basename).stem.upper() in _WINDOWS_RESERVED_NAMES:
+        basename = "_{}".format(basename)
     return basename
 
 

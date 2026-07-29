@@ -145,6 +145,28 @@ It gives you, live:
 
 Use `--port` if 8765 is taken.
 
+### Windows
+
+Everything except PNG/PDF export works on Windows. Use backslash paths for the
+environment:
+
+```
+python -m venv .venv
+.venv\Scripts\python -m pip install ".[compound]"
+.venv\Scripts\type-design-xray examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg
+.venv\Scripts\type-design-xray-preview
+```
+
+`skia-pathops` (for `--compound`) ships Windows wheels, so it installs cleanly.
+**`cairosvg` does not** — it needs the Cairo native library, which on Windows
+means installing GTK runtime DLLs by hand. If you want PNG or PDF there, the
+easier route is [`resvg`](https://github.com/linebender/resvg/releases): drop
+`resvg.exe` on your `PATH` and the exporter will find and use it. SVG export
+needs none of this.
+
+The tool is developed and tested on macOS; the Windows path is written for but
+not continuously tested, so please open an issue if something misbehaves.
+
 ### Optional: PNG and PDF export
 
 SVG export needs nothing extra. PNG and PDF need a rendering backend:

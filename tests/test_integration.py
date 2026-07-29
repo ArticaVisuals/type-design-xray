@@ -296,3 +296,31 @@ def test_public_api_matches_renderer_output(demo):
     direct = render_svg(layout_string(demo, "Tao"), style)
     viaapi = blueprint(str(DEMO), "Tao", preset="light")
     assert direct == viaapi
+
+
+def test_windows_reserved_device_names_are_not_used_as_filenames():
+    """CON, AUX, NUL and friends name devices on Windows, not files.
+
+    Typing "con" as sample text is entirely plausible, and on Windows the
+    write would go to the console device instead of producing a file.
+    """
+    from typedesignxray.api import _safe_filename
+
+    reserved = ["con", "CON", "aux", "nul", "prn", "com1", "LPT9"]
+    for text in reserved:
+        stem = _safe_filename(text).split(".")[0].upper()
+        assert stem not in {
+            "CON", "PRN", "AUX", "NUL",
+        } | {"COM%d" % i for i in range(1, 10)} | {"LPT%d" % i for i in range(1, 10)}
+
+    # ordinary text is untouched
+    assert _safe_filename("Type") == "Type"
+    assert _safe_filename("afz") == "afz"
+
+
+def test_uploaded_font_named_after_a_reserved_device_is_renamed():
+    from urllib.parse import quote
+    from typedesignxray.web import _upload_basename
+
+    assert _upload_basename(quote("con.ttf")) != "con.ttf"
+    assert _upload_basename(quote("Roboto.otf")) == "Roboto.otf"

@@ -111,8 +111,20 @@ def _normalise_formats(formats: Iterable[str]) -> Tuple[str, ...]:
     return tuple(normalised)
 
 
+#: Windows refuses these as filenames even with an extension, because they name
+#: character devices. Typing "con" or "aux" as sample text is entirely
+#: plausible, and on Windows the write would silently go to the device.
+_WINDOWS_RESERVED_NAMES = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + ["COM{}".format(i) for i in range(1, 10)]
+    + ["LPT{}".format(i) for i in range(1, 10)]
+)
+
+
 def _safe_filename(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip(" ._-")
+    if cleaned and cleaned.split(".")[0].upper() in _WINDOWS_RESERVED_NAMES:
+        cleaned = "{}-".format(cleaned)
     if cleaned:
         return cleaned[:80]
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:10]
