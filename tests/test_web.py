@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 import threading
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -14,7 +16,10 @@ from glyphblueprint.api import blueprint
 from glyphblueprint.config import available_presets, resolve_style
 from glyphblueprint.style import METRIC_NAMES
 from glyphblueprint.web import (
+    _MAX_UPLOAD_BYTES,
+    _UPLOAD_DIRECTORY,
     _preview_page,
+    PreviewHandler,
     create_server,
     main,
     render_request,
@@ -40,6 +45,96 @@ def _payload(**changes):
     }
     payload.update(changes)
     return payload
+
+
+def _post_upload(body, filename, content_length=None):
+    """Exercise one raw HTTP upload without binding a network port."""
+    length = len(body) if content_length is None else content_length
+    request = (
+        "POST /api/upload HTTP/1.0\r\n"
+        "Host: localhost\r\n"
+        "Connection: close\r\n"
+        "Content-Type: application/octet-stream\r\n"
+        "X-Filename: {}\r\n"
+        "Content-Length: {}\r\n"
+        "\r\n"
+    ).format(quote(filename, safe=""), length).encode("ascii") + body
+    server_side, client_side = socket.socketpair()
+    thread = threading.Thread(
+        target=PreviewHandler,
+        args=(server_side, ("local", 0), object()),
+    )
+    try:
+        thread.start()
+        client_side.sendall(request)
+        client_side.shutdown(socket.SHUT_WR)
+        reader = client_side.makefile("rb")
+        status_line = reader.readline().decode("ascii")
+        headers = {}
+        while True:
+            line = reader.readline()
+            if line in (b"\r\n", b""):
+                break
+            key, value = line.decode("latin-1").split(":", 1)
+            headers[key.lower()] = value.strip()
+        response_body = reader.read(int(headers["content-length"]))
+        reader.close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    finally:
+        server_side.close()
+        client_side.close()
+    status = int(status_line.split()[1])
+    return status, json.loads(response_body.decode("utf-8"))
+
+
+def test_upload_round_trip_can_render_the_uploaded_font() -> None:
+    source = EXAMPLE.read_bytes()
+
+    status, uploaded = _post_upload(source, EXAMPLE.name)
+
+    assert status == 200
+    assert uploaded["name"] == EXAMPLE.name
+    uploaded_path = Path(uploaded["font_path"])
+    assert uploaded_path.is_absolute()
+    assert uploaded_path.read_bytes() == source
+    result = render_request(
+        _payload(font_path=uploaded["font_path"], text="Ao")
+    )
+    assert result["summary"]["glyphs"] == 2
+    ET.fromstring(result["svg"])
+
+
+def test_upload_rejects_disallowed_extension() -> None:
+    status, result = _post_upload(b"not a font", "BlueprintDemo.txt")
+
+    assert status == 400
+    assert "unsupported upload extension '.txt'" in result["error"]
+
+
+def test_upload_rejects_body_over_64_mb_without_reading_it() -> None:
+    status, result = _post_upload(
+        b"x",
+        "too-large.glyphs",
+        content_length=_MAX_UPLOAD_BYTES + 1,
+    )
+
+    assert status == 413
+    assert "64 MB" in result["error"]
+
+
+def test_upload_strips_traversal_components_from_filename() -> None:
+    status, uploaded = _post_upload(
+        EXAMPLE.read_bytes(),
+        "../../evil.glyphs",
+    )
+
+    assert status == 200
+    uploaded_path = Path(uploaded["font_path"]).resolve()
+    assert uploaded["name"] == "evil.glyphs"
+    assert uploaded_path.name == "evil.glyphs"
+    assert uploaded_path.parent == _UPLOAD_DIRECTORY
+    assert uploaded_path.read_bytes() == EXAMPLE.read_bytes()
 
 
 def test_render_request_returns_valid_svg_and_summary() -> None:
@@ -69,6 +164,90 @@ _COLOR_CASES = (
     ("nodes.smooth.stroke", "nodes", "circle", "stroke", "smooth"),
     ("metrics.line.color", "metrics", "line", "stroke", None),
     ("metrics.label_color", "metrics", "text", "fill", None),
+)
+
+_SIZE_CASES = (
+    (
+        "handles.point.size",
+        12.3,
+        "handle_points",
+        "circle",
+        "r",
+        None,
+        None,
+    ),
+    (
+        "handles.point.stroke_width",
+        6.3,
+        "handle_points",
+        "circle",
+        "stroke-width",
+        None,
+        None,
+    ),
+    (
+        "nodes.corner.size",
+        12.3,
+        "nodes",
+        "rect",
+        "width",
+        "corner",
+        None,
+    ),
+    (
+        "nodes.smooth.size",
+        12.3,
+        "nodes",
+        "circle",
+        "r",
+        "smooth",
+        None,
+    ),
+    (
+        "nodes.corner.stroke_width",
+        6.3,
+        "nodes",
+        "rect",
+        "stroke-width",
+        "corner",
+        None,
+    ),
+    (
+        "nodes.smooth.stroke_width",
+        6.3,
+        "nodes",
+        "circle",
+        "stroke-width",
+        "smooth",
+        None,
+    ),
+    (
+        "outline.width",
+        6.3,
+        "outline",
+        "path",
+        "stroke-width",
+        None,
+        None,
+    ),
+    (
+        "handles.line.width",
+        6.3,
+        "handle_lines",
+        "line",
+        "stroke-width",
+        None,
+        None,
+    ),
+    (
+        "metrics.line.width",
+        6.3,
+        "metrics",
+        "line",
+        "stroke-width",
+        None,
+        "baseline",
+    ),
 )
 
 
@@ -212,6 +391,116 @@ def test_each_colour_override_reaches_rendered_svg(
     )
 
 
+def _rendered_style_value(
+    root, layer_name, tag, attribute, node_type, metric_name
+):
+    matches = [
+        element
+        for element in _elements_in_layer(root, layer_name)
+        if element.tag.split("}")[-1] == tag
+        and element.get(attribute) is not None
+        and (
+            node_type is None
+            or element.get("data-node-type") == node_type
+        )
+        and (
+            metric_name is None
+            or element.get("data-metric") == metric_name
+        )
+    ]
+    assert matches
+    return float(matches[0].get(attribute))
+
+
+@pytest.mark.parametrize(
+    (
+        "path",
+        "value",
+        "layer_name",
+        "tag",
+        "attribute",
+        "node_type",
+        "metric_name",
+    ),
+    _SIZE_CASES,
+)
+def test_each_size_override_changes_its_rendered_svg_geometry(
+    path,
+    value,
+    layer_name,
+    tag,
+    attribute,
+    node_type,
+    metric_name,
+) -> None:
+    baseline = ET.fromstring(
+        render_request(_payload(shape="", sizes={}))["svg"]
+    )
+    changed = ET.fromstring(
+        render_request(_payload(shape="", sizes={path: value}))["svg"]
+    )
+
+    baseline_value = _rendered_style_value(
+        baseline,
+        layer_name,
+        tag,
+        attribute,
+        node_type,
+        metric_name,
+    )
+    changed_value = _rendered_style_value(
+        changed,
+        layer_name,
+        tag,
+        attribute,
+        node_type,
+        metric_name,
+    )
+    assert changed_value > baseline_value
+
+
+def test_render_request_rejects_unknown_size_key() -> None:
+    key = "metrics.sidebearing_line.width"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(sizes={key: 2.0}))
+
+    assert str(caught.value) == "unknown size key {!r}".format(key)
+
+
+def test_render_request_rejects_negative_size_value() -> None:
+    path = "handles.point.size"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(sizes={path: -0.1}))
+
+    assert path in str(caught.value)
+    assert "between 0 and 20" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_render_request_rejects_non_finite_size_value(value) -> None:
+    path = "outline.width"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(sizes={path: value}))
+
+    assert path in str(caught.value)
+    assert "between 0 and 10" in str(caught.value)
+
+
+def test_omitting_sizes_entirely_leaves_output_unchanged() -> None:
+    request = _payload(shape="")
+    assert "sizes" not in request
+
+    without_sizes = render_request(request)["svg"]
+    with_empty_sizes = render_request(
+        dict(request, sizes={})
+    )["svg"]
+
+    assert without_sizes == with_empty_sizes
+
+
 def test_render_request_rejects_unknown_colour_key() -> None:
     key = "outline.width"
     with pytest.raises(ValueError) as caught:
@@ -249,6 +538,7 @@ def test_untouched_colours_are_byte_identical_to_plain_preset() -> None:
         shape="",
         metrics=False,
         colors={},
+        sizes={},
         fill_enabled=True,
     )
     rendered = render_request(request)["svg"]
@@ -305,6 +595,50 @@ def test_preview_page_has_seeded_controls_for_every_colour_path() -> None:
             preset_colors[preset]["fill_enabled"]
             is resolved.outline.fill_enabled
         )
+
+
+def test_preview_page_has_upload_control_and_raw_upload_script() -> None:
+    page = _preview_page()
+
+    assert (
+        '<input class="file-input" id="fontFile" type="file" '
+        'accept=".glyphs,.otf,.ttf,.woff,.woff2">'
+    ) in page
+    assert "Choose file…" in page
+    assert 'id="selectedFontName"' in page
+    assert 'fetch("/api/upload"' in page
+    assert '"Content-Type": "application/octet-stream"' in page
+    assert '"X-Filename": encodeURIComponent(file.name)' in page
+    assert "form.font_path.value = result.font_path;" in page
+    assert "await renderBlueprint();" in page
+
+
+def test_preview_page_seeds_and_tracks_every_size_control() -> None:
+    page = _preview_page()
+    match = re.search(r"const PRESET_SIZES = (\{.*\});", page)
+
+    assert match is not None
+    preset_sizes = json.loads(match.group(1))
+    paths = [case[0] for case in _SIZE_CASES]
+    assert set(preset_sizes) == set(available_presets())
+    assert len(re.findall(r'data-size-path="[^"]+"', page)) == len(paths)
+    for path in paths:
+        assert 'data-size-path="{}"'.format(path) in page
+    for preset in available_presets():
+        resolved = resolve_style(preset=preset)
+        assert preset_sizes[preset] == {
+            path: resolved.get_path(path)
+            for path in paths
+        }
+
+    assert "const touchedSizes = new Set();" in page
+    assert "if (!touchedSizes.has(path)) return;" in page
+    assert "sizes[path] = Number(input.value);" in page
+    assert "touchedSizes.clear();" in page
+    assert (
+        'resetColours.addEventListener("click", seedControlsFromPreset);'
+        in page
+    )
 
 
 def test_preview_page_has_ordered_disabling_metric_controls() -> None:

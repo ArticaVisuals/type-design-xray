@@ -113,6 +113,10 @@ stop it.
 
 It gives you, live:
 
+- **A file picker** — click "Choose file…" to load a `.glyphs`, `.otf`, `.ttf`
+  or `.woff` file. The path box beside it still works for typing or pasting a
+  path, and is the way to load a `.ufo`, which is a folder rather than a single
+  file and so cannot be picked this way.
 - **Colour pickers** for all twelve colours — background (with a transparent
   toggle), outline stroke and fill, handle lines, handle point fill and stroke,
   corner and smooth node fill and stroke, metric guides, and metric label text.
@@ -120,6 +124,9 @@ It gives you, live:
   preset is a starting point rather than a straitjacket. "Reset to preset" puts
   them back. Leave the swatches alone and the output is byte-identical to the
   plain preset.
+- **Sizes and stroke weights** — handle point size and stroke, corner and
+  smooth node size and stroke, outline stroke width, handle line width, and
+  metric guide width.
 - **Granular metric toggles** — a master switch, then independent checkboxes for
   the guide *lines* and the numeric *labels*, plus one per guide (baseline,
   x-height, cap height, ascender, descender, side bearings) so you can render
@@ -236,6 +243,10 @@ corner/smooth distinction off entirely.
 
 **Outline** — `stroke`, `width`, `dash`, `linecap`, `linejoin`, plus an optional
 translucent `fill`.
+
+Every line is exported as a real SVG `stroke` with a `stroke-width` — never
+converted to an outlined, filled shape — so strokes stay live and re-editable
+after import into Illustrator, Figma or After Effects.
 
 **Metrics** — which guides to draw, their line style, and full control over the
 label typeface: `label_family`, `label_size`, `label_weight`, `label_style`,

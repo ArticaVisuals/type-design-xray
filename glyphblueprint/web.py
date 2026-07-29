@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import errno
 import html
 import json
 import math
 import os
 import re
+import shutil
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from urllib.parse import unquote
 
 from .api import blueprint
 from .config import available_presets, resolve_style
@@ -21,7 +25,22 @@ from .style import FRAME_MODES, METRIC_NAMES, SHAPES
 
 
 _MAX_REQUEST_BYTES = 1_000_000
-_SUPPORTED_FONT_SUFFIXES = (".glyphs", ".otf", ".ttf", ".ufo")
+_MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+_SUPPORTED_FONT_SUFFIXES = (
+    ".glyphs",
+    ".otf",
+    ".ttf",
+    ".woff",
+    ".woff2",
+    ".ufo",
+)
+_UPLOAD_FONT_SUFFIXES = frozenset(
+    suffix for suffix in _SUPPORTED_FONT_SUFFIXES if suffix != ".ufo"
+)
+_UPLOAD_DIRECTORY = Path(
+    tempfile.mkdtemp(prefix="glyphblueprint-uploads-")
+).resolve()
+atexit.register(shutil.rmtree, str(_UPLOAD_DIRECTORY), ignore_errors=True)
 _COLOR_PATHS = (
     "canvas.background",
     "outline.stroke",
@@ -37,6 +56,17 @@ _COLOR_PATHS = (
     "metrics.label_color",
 )
 _COLOR_PATH_SET = frozenset(_COLOR_PATHS)
+_SIZE_LIMITS = {
+    "handles.point.size": 20.0,
+    "handles.point.stroke_width": 10.0,
+    "nodes.corner.size": 20.0,
+    "nodes.smooth.size": 20.0,
+    "nodes.corner.stroke_width": 10.0,
+    "nodes.smooth.stroke_width": 10.0,
+    "outline.width": 10.0,
+    "handles.line.width": 10.0,
+    "metrics.line.width": 10.0,
+}
 _HEX_COLOR = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?")
 _METRIC_LINE_ELEMENT = re.compile(
     r'<line\b(?=[^>]*\bdata-metric=")[^>]*/>'
@@ -118,6 +148,50 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       border-color: #5aa9ff;
       box-shadow: 0 0 0 3px rgba(90, 169, 255, .16);
     }
+    .font-source {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: stretch;
+      gap: .55rem;
+    }
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .file-picker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.65rem;
+      margin: 0;
+      border: 1px solid #2d527d;
+      border-radius: .55rem;
+      background: #0d2139;
+      color: #dbeaff;
+      padding: .65rem .75rem;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: none;
+      cursor: pointer;
+    }
+    .file-input:focus + .file-picker {
+      border-color: #5aa9ff;
+      box-shadow: 0 0 0 3px rgba(90, 169, 255, .16);
+    }
+    .file-name {
+      min-height: 1.1rem;
+      margin-top: .35rem;
+      color: #8195b0;
+      font-size: .72rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
     .row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -187,6 +261,28 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       letter-spacing: 0;
       line-height: 1.2;
       text-transform: none;
+    }
+    .size-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .55rem .7rem;
+    }
+    .size-control {
+      min-width: 0;
+    }
+    .size-label {
+      min-height: 1.85rem;
+      margin: 0 0 .25rem;
+      color: #dbe8fa;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      line-height: 1.25;
+      text-transform: none;
+    }
+    .size-control input[type="number"] {
+      min-height: 2.35rem;
+      padding: .45rem .6rem;
     }
     input[type="color"] {
       width: 1.8rem;
@@ -326,7 +422,12 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       <form id="controls">
         <div>
           <label for="fontPath">Font path</label>
-          <input id="fontPath" name="font_path" type="text" value="examples/BlueprintDemo.glyphs" spellcheck="false">
+          <div class="font-source">
+            <input id="fontPath" name="font_path" type="text" value="examples/BlueprintDemo.glyphs" spellcheck="false">
+            <input class="file-input" id="fontFile" type="file" accept=".glyphs,.otf,.ttf,.woff,.woff2">
+            <label class="file-picker" for="fontFile">Choose file…</label>
+          </div>
+          <div class="file-name" id="selectedFontName" aria-live="polite">No uploaded file selected</div>
         </div>
         <div>
           <label for="text">Text or /glyph/name</label>
@@ -456,6 +557,49 @@ _PAGE_TEMPLATE = r"""<!doctype html>
             </div>
           </div>
         </section>
+        <section aria-labelledby="sizesHeading">
+          <div class="colour-heading">
+            <h2 id="sizesHeading">Sizes &amp; weights</h2>
+          </div>
+          <div class="size-grid">
+            <div class="size-control">
+              <label class="size-label" for="handlePointSize">Handle point size</label>
+              <input id="handlePointSize" type="number" step="0.1" min="0" max="20" data-size-path="handles.point.size">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="handlePointStroke">Handle point stroke</label>
+              <input id="handlePointStroke" type="number" step="0.1" min="0" max="10" data-size-path="handles.point.stroke_width">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="cornerNodeSize">Corner node size</label>
+              <input id="cornerNodeSize" type="number" step="0.1" min="0" max="20" data-size-path="nodes.corner.size">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="smoothNodeSize">Smooth node size</label>
+              <input id="smoothNodeSize" type="number" step="0.1" min="0" max="20" data-size-path="nodes.smooth.size">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="cornerNodeStroke">Corner node stroke</label>
+              <input id="cornerNodeStroke" type="number" step="0.1" min="0" max="10" data-size-path="nodes.corner.stroke_width">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="smoothNodeStroke">Smooth node stroke</label>
+              <input id="smoothNodeStroke" type="number" step="0.1" min="0" max="10" data-size-path="nodes.smooth.stroke_width">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="outlineWidth">Outline stroke width</label>
+              <input id="outlineWidth" type="number" step="0.1" min="0" max="10" data-size-path="outline.width">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="handleLineWidth">Handle line width</label>
+              <input id="handleLineWidth" type="number" step="0.1" min="0" max="10" data-size-path="handles.line.width">
+            </div>
+            <div class="size-control">
+              <label class="size-label" for="metricGuideWidth">Metric guide width</label>
+              <input id="metricGuideWidth" type="number" step="0.1" min="0" max="10" data-size-path="metrics.line.width">
+            </div>
+          </div>
+        </section>
         <button class="primary" id="renderButton" type="submit">Render blueprint</button>
       </form>
     </aside>
@@ -471,15 +615,19 @@ _PAGE_TEMPLATE = r"""<!doctype html>
   </div>
   <script>
     const PRESET_COLORS = __PRESET_COLORS__;
+    const PRESET_SIZES = __PRESET_SIZES__;
     const form = document.querySelector("#controls");
     const preview = document.querySelector("#preview");
     const status = document.querySelector("#status");
     const renderButton = document.querySelector("#renderButton");
     const downloadButton = document.querySelector("#downloadButton");
     const resetColours = document.querySelector("#resetColours");
+    const fontFile = document.querySelector("#fontFile");
+    const selectedFontName = document.querySelector("#selectedFontName");
     const transparentBackground = document.querySelector("#transparentBackground");
     const fillOutline = document.querySelector("#fillOutline");
     const colorInputs = Array.from(form.querySelectorAll("[data-color-path]"));
+    const sizeInputs = Array.from(form.querySelectorAll("[data-size-path]"));
     const metricControls = Array.from(form.querySelectorAll("[data-metric-control]"));
     const metricNameInputs = Array.from(form.querySelectorAll('input[name="metric_names"]'));
     const backgroundInput = form.querySelector('[data-color-path="canvas.background"]');
@@ -490,6 +638,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       "nodes.smooth.fill": "nodes.smooth.stroke"
     };
     const touchedColors = new Set();
+    const touchedSizes = new Set();
     let latestSvg = "";
 
     function seedColorsFromPreset() {
@@ -511,6 +660,20 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       touchedColors.clear();
     }
 
+    function seedSizesFromPreset() {
+      const presetSizes = PRESET_SIZES[form.preset.value];
+      if (!presetSizes) return;
+      sizeInputs.forEach((input) => {
+        input.value = presetSizes[input.dataset.sizePath];
+      });
+      touchedSizes.clear();
+    }
+
+    function seedControlsFromPreset() {
+      seedColorsFromPreset();
+      seedSizesFromPreset();
+    }
+
     function updateMetricControls() {
       metricControls.forEach((input) => {
         input.disabled = !form.metrics.checked;
@@ -519,6 +682,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
 
     function payload() {
       const colors = {};
+      const sizes = {};
       colorInputs.forEach((input) => {
         const path = input.dataset.colorPath;
         if (!touchedColors.has(path)) return;
@@ -527,6 +691,11 @@ _PAGE_TEMPLATE = r"""<!doctype html>
             ? "none"
             : input.value
         );
+      });
+      sizeInputs.forEach((input) => {
+        const path = input.dataset.sizePath;
+        if (!touchedSizes.has(path)) return;
+        sizes[path] = Number(input.value);
       });
       const request = {
         font_path: form.font_path.value,
@@ -546,9 +715,17 @@ _PAGE_TEMPLATE = r"""<!doctype html>
           .map((input) => input.value),
         apply_kerning: form.kerning.checked,
         fill_enabled: fillOutline.checked,
-        colors
+        colors,
+        sizes
       };
       return request;
+    }
+
+    function showError(error) {
+      latestSvg = "";
+      preview.innerHTML = `<p class="empty">The preview could not be generated. Check the font path and settings.</p>`;
+      status.className = "error";
+      status.textContent = error.message;
     }
 
     async function renderBlueprint(event) {
@@ -571,10 +748,36 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         status.textContent = `${details.glyphs} glyphs · ${details.nodes} nodes · ${details.width} × ${details.height}`;
         downloadButton.disabled = false;
       } catch (error) {
-        latestSvg = "";
-        preview.innerHTML = `<p class="empty">The preview could not be generated. Check the font path and settings.</p>`;
-        status.className = "error";
-        status.textContent = error.message;
+        showError(error);
+      } finally {
+        renderButton.disabled = false;
+      }
+    }
+
+    async function uploadFont() {
+      const file = fontFile.files[0];
+      if (!file) return;
+      selectedFontName.textContent = file.name;
+      renderButton.disabled = true;
+      downloadButton.disabled = true;
+      status.className = "";
+      status.textContent = "Uploading…";
+      try {
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "X-Filename": encodeURIComponent(file.name)
+          },
+          body: file
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Upload failed");
+        form.font_path.value = result.font_path;
+        selectedFontName.textContent = result.name;
+        await renderBlueprint();
+      } catch (error) {
+        showError(error);
       } finally {
         renderButton.disabled = false;
       }
@@ -585,6 +788,11 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         touchedColors.add(input.dataset.colorPath);
       });
     });
+    sizeInputs.forEach((input) => {
+      input.addEventListener("input", () => {
+        touchedSizes.add(input.dataset.sizePath);
+      });
+    });
     transparentBackground.addEventListener("change", () => {
       backgroundInput.disabled = transparentBackground.checked;
       touchedColors.add("canvas.background");
@@ -592,10 +800,11 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     fillOutline.addEventListener("change", () => {
       outlineFillInput.disabled = !fillOutline.checked;
     });
-    form.preset.addEventListener("change", seedColorsFromPreset);
-    resetColours.addEventListener("click", seedColorsFromPreset);
+    form.preset.addEventListener("change", seedControlsFromPreset);
+    resetColours.addEventListener("click", seedControlsFromPreset);
     form.metrics.addEventListener("change", updateMetricControls);
     form.addEventListener("submit", renderBlueprint);
+    fontFile.addEventListener("change", uploadFont);
     downloadButton.addEventListener("click", () => {
       if (!latestSvg) return;
       const url = URL.createObjectURL(new Blob([latestSvg], {type: "image/svg+xml"}));
@@ -606,7 +815,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       URL.revokeObjectURL(url);
     });
 
-    seedColorsFromPreset();
+    seedControlsFromPreset();
     updateMetricControls();
     renderBlueprint();
   </script>
@@ -619,6 +828,7 @@ def _preview_page() -> str:
     presets = available_presets()
     options = []
     preset_colors = {}
+    preset_sizes = {}
     for name in presets:
         selected = " selected" if name == "blueprint" else ""
         options.append(
@@ -635,9 +845,18 @@ def _preview_page() -> str:
         }
         colors["fill_enabled"] = resolved.outline.fill_enabled
         preset_colors[name] = colors
+        preset_sizes[name] = {
+            path: resolved.get_path(path)
+            for path in _SIZE_LIMITS
+        }
 
     colors_json = json.dumps(
         preset_colors,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).replace("<", "\\u003c")
+    sizes_json = json.dumps(
+        preset_sizes,
         sort_keys=True,
         separators=(",", ":"),
     ).replace("<", "\\u003c")
@@ -645,6 +864,7 @@ def _preview_page() -> str:
         _PAGE_TEMPLATE
         .replace("__PRESET_OPTIONS__", "\n              ".join(options))
         .replace("__PRESET_COLORS__", colors_json)
+        .replace("__PRESET_SIZES__", sizes_json)
     )
 
 
@@ -674,7 +894,7 @@ def _number(
         raise ValueError("{} must be a number".format(key))
     try:
         number = float(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("{} must be a number".format(key)) from exc
     if not math.isfinite(number) or not minimum <= number <= maximum:
         raise ValueError(
@@ -700,6 +920,27 @@ def _colors(payload: Dict[str, Any]) -> Dict[str, str]:
                 "#rgb/#rrggbb hex colour, got {!r}".format(key, value)
             )
         overrides[key] = value
+    return overrides
+
+
+def _sizes(payload: Dict[str, Any]) -> Dict[str, float]:
+    values = payload.get("sizes", {})
+    if not isinstance(values, dict):
+        raise ValueError("sizes must be an object mapping style paths to numbers")
+
+    overrides = {}
+    for key, value in values.items():
+        if key not in _SIZE_LIMITS:
+            raise ValueError("unknown size key {!r}".format(key))
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("{!r} size must be a number".format(key))
+        overrides[key] = _number(
+            values,
+            key,
+            0.0,
+            0.0,
+            _SIZE_LIMITS[key],
+        )
     return overrides
 
 
@@ -738,6 +979,35 @@ def _font_path(value: str) -> Path:
     elif not path.is_file():
         raise ValueError("font path is not a file: {}".format(path))
     return path
+
+
+def _upload_basename(encoded_name: str) -> str:
+    if not encoded_name:
+        raise ValueError("X-Filename header is required")
+    try:
+        decoded = unquote(encoded_name, encoding="utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise ValueError("X-Filename must be valid percent-encoded UTF-8") from exc
+    basename = decoded.replace("\\", "/").rsplit("/", 1)[-1]
+    if not basename or basename in (".", "..") or "\x00" in basename:
+        raise ValueError("X-Filename must contain a valid filename")
+    suffix = Path(basename).suffix.lower()
+    if suffix not in _UPLOAD_FONT_SUFFIXES:
+        raise ValueError(
+            "unsupported upload extension {!r}; choose from {}".format(
+                suffix or "(none)",
+                ", ".join(sorted(_UPLOAD_FONT_SUFFIXES)),
+            )
+        )
+    return basename
+
+
+def _upload_destination(encoded_name: str) -> Tuple[str, Path]:
+    basename = _upload_basename(encoded_name)
+    destination = (_UPLOAD_DIRECTORY / basename).resolve()
+    if destination.parent != _UPLOAD_DIRECTORY:
+        raise ValueError("uploaded filename resolves outside the upload directory")
+    return basename, destination
 
 
 def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -788,6 +1058,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     metric_names = _metric_names(payload)
     apply_kerning = _boolean(payload, "apply_kerning", True)
     colors = _colors(payload)
+    sizes = _sizes(payload)
 
     overrides = {
         "canvas": {"frame": frame, "width": width},
@@ -800,6 +1071,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
     }
     overrides.update(colors)
+    overrides.update(sizes)
     if "fill_enabled" in payload:
         overrides["outline.fill_enabled"] = _boolean(
             payload, "fill_enabled", False
@@ -860,7 +1132,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class PreviewHandler(BaseHTTPRequestHandler):
-    """Serve the preview page and its single local render endpoint."""
+    """Serve the preview page and its local upload/render endpoints."""
 
     server_version = "glyphblueprint-preview/1.0"
 
@@ -893,6 +1165,9 @@ class PreviewHandler(BaseHTTPRequestHandler):
         self._json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
+        if self.path == "/api/upload":
+            self._upload_font()
+            return
         if self.path != "/api/render":
             self._json(404, {"error": "not found"})
             return
@@ -914,6 +1189,50 @@ class PreviewHandler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(exc)})
             return
         self._json(200, result)
+
+    def _upload_font(self) -> None:
+        content_type = self.headers.get("Content-Type", "")
+        if content_type.split(";", 1)[0].strip().lower() != (
+            "application/octet-stream"
+        ):
+            self._json(
+                415,
+                {
+                    "error": (
+                        "upload Content-Type must be application/octet-stream"
+                    )
+                },
+            )
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._json(400, {"error": "invalid Content-Length"})
+            return
+        if length <= 0:
+            self._json(400, {"error": "upload body is empty"})
+            return
+        if length > _MAX_UPLOAD_BYTES:
+            self._json(
+                413,
+                {"error": "upload exceeds the 64 MB size limit"},
+            )
+            return
+        try:
+            basename, destination = _upload_destination(
+                self.headers.get("X-Filename", "")
+            )
+            body = self.rfile.read(length)
+            if len(body) != length:
+                raise ValueError("upload body ended before Content-Length bytes")
+            destination.write_bytes(body)
+        except (OSError, ValueError) as exc:
+            self._json(400, {"error": str(exc)})
+            return
+        self._json(
+            200,
+            {"font_path": str(destination), "name": basename},
+        )
 
     def log_message(self, format: str, *args: Any) -> None:
         return
