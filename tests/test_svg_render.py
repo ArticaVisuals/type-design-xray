@@ -200,13 +200,78 @@ def test_metrics_guides_labels_values_and_screen_space_text():
     label_text = [text.text for text in metrics.findall(".//svg:text", SVG)]
     assert "baseline 0" in label_text
     assert "x-height 510" in label_text
-    assert "lsb 45" in label_text
-    assert "rsb 55" in label_text
+    assert "45" in label_text
+    assert "600" in label_text
+    assert "55" in label_text
+
+    spacing_labels = metrics.findall(
+        ".//svg:text[@data-metric='sidebearings']", SVG
+    )
+    assert [label.get("data-spacing-value") for label in spacing_labels] == [
+        "lsb",
+        "advance",
+        "rsb",
+    ]
+    assert all(label.get("text-anchor") == "middle" for label in spacing_labels)
 
     for ancestor in metrics.iter():
         transform = ancestor.attrib.get("transform", "")
         if re.search(r"scale\([^)]*\s-", transform):
             assert ancestor.find(".//svg:text", SVG) is None
+
+
+def test_spacing_metrics_deduplicate_shared_boundaries_and_label_each_glyph():
+    first = ir.Glyph(
+        name="n",
+        advance_width=563.0,
+        contours=[_simple_contour()],
+        metrics=ir.Metrics(lsb=80.0, rsb=70.0),
+    )
+    second = ir.Glyph(
+        name="u",
+        advance_width=563.0,
+        contours=[_simple_contour()],
+        metrics=ir.Metrics(lsb=70.0, rsb=80.0),
+    )
+    layout = ir.Layout(
+        glyphs=[
+            ir.PositionedGlyph(glyph=first, origin_x=0.0),
+            ir.PositionedGlyph(glyph=second, origin_x=563.0),
+        ],
+        metrics=ir.Metrics(ascender=750.0, descender=-250.0),
+        total_advance=1126.0,
+    )
+    resolved = style_contract.Style()
+    resolved.metrics.visible = True
+    resolved.metrics.show = ["sidebearings"]
+    root = _root(render_svg(layout, resolved))
+    metrics = _layer(root, "metrics")
+
+    boundaries = metrics.findall(
+        ".//svg:line[@data-metric='sidebearings']", SVG
+    )
+    assert [float(line.get("x1")) for line in boundaries] == [
+        0.0,
+        563.0,
+        1126.0,
+    ]
+    assert boundaries[1].get("data-side") == "rsb lsb"
+    assert boundaries[1].get("data-glyph-indexes") == "0 1"
+    assert all(line.get("stroke-linecap") == "round" for line in boundaries)
+    assert all("stroke-dasharray" in line.attrib for line in boundaries)
+
+    groups = metrics.findall(".//svg:g[@class='glyph-spacing-values']", SVG)
+    assert len(groups) == 2
+    assert [
+        [label.text for label in group.findall("svg:text", SVG)]
+        for group in groups
+    ] == [["80", "563", "70"], ["70", "563", "80"]]
+    for group in groups:
+        positions = [
+            float(label.get("x"))
+            for label in group.findall("svg:text", SVG)
+        ]
+        assert positions == sorted(positions)
 
 
 def test_dashed_handle_line_emits_scaled_stroke_dasharray():

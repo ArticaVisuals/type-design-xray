@@ -516,7 +516,7 @@ def _metric_label(
     metric_name: str,
     resolved_style: style_contract.Style,
     anchor: str = "start",
-) -> None:
+) -> ET.Element:
     metrics_style = resolved_style.metrics
     attributes = {
         "x": _number(x),
@@ -540,6 +540,72 @@ def _metric_label(
         attributes["text-anchor"] = anchor
     text = ET.SubElement(parent, "text", attributes)
     text.text = value
+    return text
+
+
+def _spacing_boundaries(
+    layout: ir.Layout,
+) -> List[Tuple[float, List[int], List[str]]]:
+    """Return unique advance boundaries in visual order.
+
+    Adjacent unkerned glyphs share a boundary. Drawing both the preceding
+    glyph's right edge and the following glyph's left edge makes a dotted rule
+    look heavier than the others, so coalesce coincident positions.
+    """
+    boundaries: List[Tuple[float, List[int], List[str]]] = []
+    for index, positioned in enumerate(layout.glyphs):
+        candidates = (
+            (positioned.origin_x, "lsb"),
+            (
+                positioned.origin_x + positioned.glyph.advance_width,
+                "rsb",
+            ),
+        )
+        for x, side in candidates:
+            existing = next(
+                (
+                    boundary
+                    for boundary in boundaries
+                    if math.isclose(
+                        boundary[0],
+                        x,
+                        rel_tol=0.0,
+                        abs_tol=1e-9,
+                    )
+                ),
+                None,
+            )
+            if existing is None:
+                boundaries.append((x, [index], [side]))
+                continue
+            if index not in existing[1]:
+                existing[1].append(index)
+            if side not in existing[2]:
+                existing[2].append(side)
+    return boundaries
+
+
+def _spacing_value_items(
+    positioned: ir.PositionedGlyph,
+) -> List[Tuple[str, Optional[float], float]]:
+    """Glyphs-style LSB, advance-width and RSB labels with region centres."""
+    glyph = positioned.glyph
+    left = positioned.origin_x
+    advance = glyph.advance_width
+    right = left + advance
+    lsb = glyph.metrics.lsb
+    rsb = glyph.metrics.rsb
+
+    # Missing sidebearing metadata is uncommon, but keeping its label inside
+    # the glyph cell is more useful than stacking it on a boundary.
+    fallback_span = advance * 0.25
+    lsb_span = lsb if lsb is not None else fallback_span
+    rsb_span = rsb if rsb is not None else fallback_span
+    return [
+        ("lsb", lsb, left + lsb_span * 0.5),
+        ("advance", advance, left + advance * 0.5),
+        ("rsb", rsb, right - rsb_span * 0.5),
+    ]
 
 
 def _render_metrics(
@@ -597,51 +663,68 @@ def _render_metrics(
     if not sidebearings:
         return
 
+    for boundary_index, (x, glyph_indexes, sides) in enumerate(
+        _spacing_boundaries(layout)
+    ):
+        attributes = _line_attributes(
+            metrics_style.sidebearing_line, frame.scale
+        )
+        attributes.update(
+            {
+                "x1": _number(x),
+                "y1": _number(frame.ymin),
+                "x2": _number(x),
+                "y2": _number(frame.ymax),
+                "data-metric": "sidebearings",
+                "data-boundary-index": str(boundary_index),
+                "data-side": " ".join(sides),
+                "data-glyph-indexes": " ".join(
+                    str(index) for index in glyph_indexes
+                ),
+            }
+        )
+        ET.SubElement(geometry, "line", attributes)
+
+    if labels is None:
+        return
+
+    label_y = (
+        frame.height
+        - frame.padding
+        + metrics_style.label_size * 1.35
+    )
+    fallback_labels = {
+        "lsb": "lsb",
+        "advance": "width",
+        "rsb": "rsb",
+    }
     for index, positioned in enumerate(layout.glyphs):
         glyph = positioned.glyph
-        left = positioned.origin_x
-        right = positioned.origin_x + glyph.advance_width
-        for side, x, raw_value in (
-            ("lsb", left, glyph.metrics.lsb),
-            ("rsb", right, glyph.metrics.rsb),
-        ):
-            attributes = _line_attributes(
-                metrics_style.sidebearing_line, frame.scale
+        glyph_labels = ET.SubElement(
+            labels,
+            "g",
+            {
+                "class": "glyph-spacing-values",
+                "data-glyph": glyph.name,
+                "data-glyph-index": str(index),
+            },
+        )
+        for kind, raw_value, x in _spacing_value_items(positioned):
+            screen_x, _ = frame.screen_point((x, frame.ymin))
+            text = fallback_labels[kind]
+            if metrics_style.label_values:
+                text = "—" if raw_value is None else _number(raw_value)
+            label = _metric_label(
+                glyph_labels,
+                screen_x,
+                label_y,
+                text,
+                "sidebearings",
+                resolved_style,
+                anchor="middle",
             )
-            attributes.update(
-                {
-                    "x1": _number(x),
-                    "y1": _number(frame.ymin),
-                    "x2": _number(x),
-                    "y2": _number(frame.ymax),
-                    "data-metric": "sidebearings",
-                    "data-side": side,
-                    "data-glyph-index": str(index),
-                }
-            )
-            ET.SubElement(geometry, "line", attributes)
-            if labels is not None:
-                screen_x, _ = frame.screen_point((x, frame.ymax))
-                text = side
-                if metrics_style.label_values and raw_value is not None:
-                    text = "{} {}".format(side, _number(raw_value))
-                # Side-bearing labels live along the bottom, clear of the
-                # horizontal metric labels which are anchored top-left. lsb and
-                # rsb sit on separate rows and anchor away from their own guide,
-                # because one glyph's rsb and the next glyph's lsb can land on
-                # nearly the same x once kerning pulls them together.
-                row = 0 if side == "lsb" else 1
-                _metric_label(
-                    labels,
-                    screen_x + (2.0 if side == "lsb" else -2.0),
-                    frame.height
-                    - frame.padding
-                    + metrics_style.label_size * (1.0 + row * 1.25),
-                    text,
-                    "sidebearings",
-                    resolved_style,
-                    anchor="start" if side == "lsb" else "end",
-                )
+            label.set("data-spacing-value", kind)
+            label.set("data-glyph-index", str(index))
 
 
 def _render_fill(

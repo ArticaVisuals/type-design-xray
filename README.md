@@ -222,7 +222,9 @@ It gives you, live:
 - **Granular metric toggles** — a master switch, then independent checkboxes for
   the guide *lines* and the numeric *labels*, plus one per guide (baseline,
   x-height, cap height, ascender, descender, side bearings) so you can render
-  exactly the pieces you want.
+  exactly the pieces you want. Side-bearing metrics use a Glyphs-style spacing
+  row: dotted advance boundaries with the LSB, advance width, and RSB values
+  positioned beneath each glyph.
 - **Reusable style presets** — name the current settings and export them as a
   JSON preset. Load that file in the preview next time, or pass it to the CLI
   with `--config`.

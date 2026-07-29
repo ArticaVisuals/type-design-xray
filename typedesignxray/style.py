@@ -178,7 +178,13 @@ class MetricsStyle:
         default_factory=lambda: LineStyle(color="#2a4a7a", width=1.0, dash="dashed", opacity=0.9)
     )
     sidebearing_line: LineStyle = field(
-        default_factory=lambda: LineStyle(color="#2a4a7a", width=1.0, dash="dotted", opacity=0.8)
+        default_factory=lambda: LineStyle(
+            color="#2a4a7a",
+            width=1.0,
+            dash="dotted",
+            opacity=0.8,
+            linecap="round",
+        )
     )
     labels: bool = True
     label_color: str = "#6f9fd8"
