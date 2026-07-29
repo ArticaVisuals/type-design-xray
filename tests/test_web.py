@@ -756,16 +756,76 @@ def test_render_request_rejects_malformed_colour_value(value) -> None:
     assert "#rgb/#rrggbb" in message
 
 
-def test_none_background_omits_the_background_rect() -> None:
+@pytest.mark.parametrize(
+    ("path", "layer_name", "tag", "attribute", "node_type"),
+    _COLOR_CASES,
+)
+def test_each_colour_accepts_none_as_transparent(
+    path, layer_name, tag, attribute, node_type
+) -> None:
     result = render_request(
-        _payload(shape="", colors={"canvas.background": "none"})
+        _payload(
+            shape="",
+            colors={path: "none"},
+            fill_enabled=True,
+        )
     )
     root = ET.fromstring(result["svg"])
 
-    assert not any(
-        element.tag.split("}")[-1] == "rect"
-        for element in _elements_in_layer(root, "background")
+    matching_elements = [
+        element
+        for element in _elements_in_layer(root, layer_name)
+        if element.tag.split("}")[-1] == tag
+        and (
+            node_type is None
+            or element.get("data-node-type") == node_type
+        )
+    ]
+    if path == "canvas.background":
+        assert not matching_elements
+    else:
+        assert matching_elements
+        assert "none" in {
+            element.get(attribute)
+            for element in matching_elements
+        }
+
+
+def test_preview_page_places_export_at_the_bottom_of_the_form() -> None:
+    page = _preview_page()
+    form = re.search(
+        r'<form id="controls">(.*?)</form>',
+        page,
+        re.DOTALL,
     )
+    toolbar = re.search(
+        r'<div class="toolbar">(.*?)</div>\s*</div>',
+        page,
+        re.DOTALL,
+    )
+
+    assert form is not None
+    assert toolbar is not None
+    assert "Render blueprint" not in page
+    assert 'id="renderButton"' not in page
+    assert 'id="downloadButton"' not in page
+    assert re.search(
+        r'<button\b(?=[^>]*\bclass="primary")'
+        r'(?=[^>]*\bid="exportButton")'
+        r'(?=[^>]*\btype="button")[^>]*>'
+        r'Export SVG</button>\s*$',
+        form.group(1),
+    )
+    assert 'id="exportButton"' not in toolbar.group(1)
+    export_query = re.search(
+        r'const (\w+) = document\.querySelector\("#exportButton"\);',
+        page,
+    )
+    assert export_query is not None
+    assert '{}.addEventListener("click",'.format(
+        export_query.group(1)
+    ) in page
+    assert '"image/svg+xml"' in page
 
 
 def test_untouched_colours_are_byte_identical_to_plain_preset() -> None:
@@ -891,6 +951,96 @@ def test_preview_page_has_seeded_controls_for_every_colour_path() -> None:
             preset_colors[preset]["fill_enabled"]
             is resolved.outline.fill_enabled
         )
+
+
+def test_preview_page_has_hex_swatch_and_transparency_for_every_colour() -> None:
+    page = _preview_page()
+    input_tags = re.findall(r"<input\b[^>]*>", page)
+    paths = {case[0] for case in _COLOR_CASES}
+
+    def controls(data_attribute):
+        found = {}
+        for tag in input_tags:
+            attributes = dict(
+                re.findall(r'([\w-]+)="([^"]*)"', tag)
+            )
+            path = attributes.get(data_attribute)
+            if path is not None:
+                assert path not in found
+                found[path] = (attributes, tag)
+        return found
+
+    swatches = controls("data-color-picker")
+    hex_inputs = controls("data-color-path")
+    transparent_checks = controls("data-transparent-path")
+
+    assert set(swatches) == paths
+    assert set(hex_inputs) == paths
+    assert set(transparent_checks) == paths
+    for path in paths:
+        swatch_attributes, _ = swatches[path]
+        hex_attributes, hex_tag = hex_inputs[path]
+        transparent_attributes, _ = transparent_checks[path]
+
+        assert swatch_attributes["type"] == "color"
+        assert hex_attributes["type"] == "text"
+        assert hex_attributes["maxlength"] == "7"
+        assert "disabled" not in hex_tag
+        assert transparent_attributes["type"] == "checkbox"
+
+    assert (
+        'form.querySelectorAll("[data-color-picker]")'
+        in page
+    )
+    assert (
+        'form.querySelectorAll("[data-transparent-path]")'
+        in page
+    )
+    assert '"none"' in page
+
+
+def test_preview_page_can_export_and_reload_reusable_presets() -> None:
+    page = _preview_page()
+
+    assert (
+        '<input id="presetName" type="text" maxlength="80"'
+        in page
+    )
+    assert re.search(
+        r'<button\b(?=[^>]*\bid="savePreset")'
+        r'(?=[^>]*\btype="button")[^>]*>Export preset</button>',
+        page,
+    )
+    assert re.search(
+        r'<input\b(?=[^>]*\bid="presetFile")'
+        r'(?=[^>]*\btype="file")'
+        r'(?=[^>]*\baccept="[^"]*application/json)[^>]*>',
+        page,
+    )
+    assert "Load preset" in page
+
+    save_query = re.search(
+        r'const (\w+) = document\.querySelector\("#savePreset"\);',
+        page,
+    )
+    file_query = re.search(
+        r'const (\w+) = document\.querySelector\("#presetFile"\);',
+        page,
+    )
+    assert save_query is not None
+    assert file_query is not None
+    assert '{}.addEventListener("click",'.format(
+        save_query.group(1)
+    ) in page
+    assert '{}.addEventListener("change",'.format(
+        file_query.group(1)
+    ) in page
+    assert '"application/json"' in page
+    assert re.search(r"\bJSON\.stringify\(", page)
+    assert re.search(r"\bJSON\.parse\(", page)
+    assert re.search(r"\bawait\s+\w+\.text\(\)", page)
+    assert re.search(r"\.download\s*=", page)
+    assert re.search(r'\.json["`]', page)
 
 
 def test_preview_page_has_upload_control_and_raw_upload_script() -> None:
@@ -1053,15 +1203,23 @@ def test_preview_page_live_renders_all_control_groups_once() -> None:
         "input[type=\"number\"]')"
         in page
     )
-    assert ").filter((input) => input !== form.font_path);" in page
+    assert "input !== form.font_path" in page
+    assert "input !== presetName" in page
+    assert "!input.dataset.colorPath" in page
     assert page.count("textNumberInputs.forEach((input) => {") == 1
 
     color_listener = re.search(
-        r"colorInputs\.forEach\(\(input\) => \{\s*"
-        r'input\.addEventListener\("input", \(\) => \{\s*'
-        r"touchedColors\.add\(input\.dataset\.colorPath\);\s*"
-        r"scheduleLiveRender\(\);",
+        r"colorInputs\.forEach\(\(input\) => \{"
+        r".*?"
+        r'input\.addEventListener\("input", \(\) => \{'
+        r".*?"
+        r"touchedColors\.add\(path\);"
+        r".*?"
+        r"scheduleLiveRender\(\);"
+        r".*?"
+        r"colorPickers\.forEach",
         page,
+        re.DOTALL,
     )
     assert color_listener is not None
 
@@ -1080,14 +1238,20 @@ def test_preview_page_debounces_live_renders_and_drops_stale_responses() -> None
     assert page.count(
         "if (requestId !== renderRequestCounter) return;"
     ) == 2
-    assert "renderBlueprint(null, {live: true});" in page
+    render_live = re.search(
+        r"function renderLiveNow\(\) \{(.*?)\n    \}",
+        page,
+        re.DOTALL,
+    )
+    assert render_live is not None
+    assert "renderBlueprint();" in render_live.group(1)
     assert "function scheduleLiveRender(delay = 250)" in page
     assert "}, delay);" in page
-    assert (
-        "if (!live) {\n"
-        "        renderButton.disabled = true;"
-    ) in page
-    assert 'form.addEventListener("submit", renderBlueprint);' in page
+    assert "exportButton.disabled = true;" in page
+    assert "exportButton.disabled = false;" in page
+    assert 'form.addEventListener("submit", (event) => {' in page
+    assert "event.preventDefault();" in page
+    assert "renderLiveNow();" in page
 
     show_error = re.search(
         r"function showError\(error\) \{([^{}]*)\}",

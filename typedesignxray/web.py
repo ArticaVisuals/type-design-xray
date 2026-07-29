@@ -210,6 +210,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Type Design X-Ray local preview</title>
+  <link rel="icon" href="data:,">
   <style>
     :root {
       color-scheme: dark;
@@ -386,10 +387,18 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     }
     .colour-control {
       display: grid;
+      gap: .35rem;
+      min-width: 0;
+      padding: .55rem;
+      border: 1px solid #1f3552;
+      border-radius: .55rem;
+      background: #09182a;
+    }
+    .colour-input-row {
+      display: grid;
       grid-template-columns: 1.8rem minmax(0, 1fr);
       align-items: center;
-      gap: .2rem .45rem;
-      min-width: 0;
+      gap: .45rem;
     }
     .colour-label {
       min-width: 0;
@@ -544,8 +553,24 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       filter: grayscale(1);
       opacity: .35;
     }
+    .hex-colour {
+      min-width: 0;
+      min-height: 1.9rem !important;
+      padding: .3rem .45rem !important;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .76rem;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .hex-colour:disabled {
+      color: #8195b0;
+      cursor: default;
+      opacity: .55;
+    }
+    .hex-colour[aria-invalid="true"] {
+      border-color: #ff6b81;
+    }
     .mini-check {
-      grid-column: 1 / -1;
       display: inline-flex;
       align-items: center;
       gap: .3rem;
@@ -572,6 +597,30 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       cursor: pointer;
     }
     .reset:hover { filter: brightness(1.08); }
+    .preset-file-panel {
+      display: grid;
+      gap: .55rem;
+      padding: .7rem;
+      border: 1px solid #1f3552;
+      border-radius: .6rem;
+      background: #09182a;
+    }
+    .preset-file-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: stretch;
+      gap: .45rem;
+    }
+    .preset-file-row .file-picker,
+    .preset-file-row .reset {
+      min-height: 2.65rem;
+    }
+    .preset-help {
+      margin: 0;
+      color: #8195b0;
+      font-size: .7rem;
+      line-height: 1.4;
+    }
     input[type="checkbox"] {
       width: 1rem;
       height: 1rem;
@@ -587,7 +636,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       cursor: pointer;
     }
     .primary:hover { filter: brightness(1.08); }
-    .primary:disabled { cursor: wait; opacity: .6; }
+    .primary:disabled { cursor: not-allowed; opacity: .55; }
     .toolbar {
       position: sticky;
       top: 0;
@@ -607,17 +656,6 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       white-space: nowrap;
     }
     #status.error { color: #ff9aa9; white-space: normal; }
-    .download {
-      flex: 0 0 auto;
-      border: 1px solid #2d527d;
-      border-radius: .5rem;
-      background: #0d2139;
-      color: #dbeaff;
-      padding: .55rem .8rem;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .download:disabled { opacity: .4; cursor: default; }
     .stage {
       display: grid;
       place-items: center;
@@ -676,8 +714,12 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         min-height: 70vh;
         overflow: visible;
       }
+      .preset-file-row { grid-template-columns: 1fr; }
       .toolbar { position: static; }
       .stage { min-height: 28rem; overflow: visible; }
+    }
+    @media (max-width: 520px) {
+      .colour-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -720,6 +762,16 @@ _PAGE_TEMPLATE = r"""<!doctype html>
             </select>
           </div>
         </div>
+        <section class="preset-file-panel" aria-labelledby="presetFileHeading">
+          <label id="presetFileHeading" for="presetName">Reusable style preset</label>
+          <div class="preset-file-row">
+            <input id="presetName" type="text" maxlength="80" placeholder="My blueprint" aria-describedby="presetHelp">
+            <button class="reset" id="savePreset" type="button">Export preset</button>
+            <input class="file-input" id="presetFile" type="file" accept=".json,application/json">
+            <label class="file-picker" for="presetFile">Load preset…</label>
+          </div>
+          <p class="preset-help" id="presetHelp">Downloads a JSON style file you can load here later or pass to <code>--config</code>.</p>
+        </section>
         <div class="row">
           <div>
             <label for="frame">Frame</label>
@@ -831,54 +883,101 @@ _PAGE_TEMPLATE = r"""<!doctype html>
           </div>
           <div class="colour-grid">
             <div class="colour-control">
-              <input id="canvasBackground" type="color" data-color-path="canvas.background">
               <label class="colour-label" for="canvasBackground">Background</label>
-              <label class="mini-check"><input id="transparentBackground" type="checkbox"> Transparent</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="canvas.background" aria-label="Background colour picker">
+                <input class="hex-colour" id="canvasBackground" type="text" data-color-path="canvas.background" maxlength="7" spellcheck="false" aria-label="Background hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="canvas.background" aria-label="Make background transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="outlineStroke" type="color" data-color-path="outline.stroke">
               <label class="colour-label" for="outlineStroke">Outline stroke</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="outline.stroke" aria-label="Outline stroke colour picker">
+                <input class="hex-colour" id="outlineStroke" type="text" data-color-path="outline.stroke" maxlength="7" spellcheck="false" aria-label="Outline stroke hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="outline.stroke" aria-label="Make outline stroke transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="outlineFill" type="color" data-color-path="outline.fill">
               <label class="colour-label" for="outlineFill">Outline fill</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="outline.fill" aria-label="Outline fill colour picker">
+                <input class="hex-colour" id="outlineFill" type="text" data-color-path="outline.fill" maxlength="7" spellcheck="false" aria-label="Outline fill hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="outline.fill" aria-label="Make outline fill transparent"> Transparent</label>
               <label class="mini-check"><input id="fillOutline" type="checkbox"> Fill outline</label>
             </div>
             <div class="colour-control">
-              <input id="handleLines" type="color" data-color-path="handles.line.color">
               <label class="colour-label" for="handleLines">Handle lines</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="handles.line.color" aria-label="Handle lines colour picker">
+                <input class="hex-colour" id="handleLines" type="text" data-color-path="handles.line.color" maxlength="7" spellcheck="false" aria-label="Handle lines hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="handles.line.color" aria-label="Make handle lines transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="handlePointFill" type="color" data-color-path="handles.point.fill">
               <label class="colour-label" for="handlePointFill">Handle point fill</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="handles.point.fill" aria-label="Handle point fill colour picker">
+                <input class="hex-colour" id="handlePointFill" type="text" data-color-path="handles.point.fill" maxlength="7" spellcheck="false" aria-label="Handle point fill hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="handles.point.fill" aria-label="Make handle point fill transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="handlePointStroke" type="color" data-color-path="handles.point.stroke">
               <label class="colour-label" for="handlePointStroke">Handle point stroke</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="handles.point.stroke" aria-label="Handle point stroke colour picker">
+                <input class="hex-colour" id="handlePointStroke" type="text" data-color-path="handles.point.stroke" maxlength="7" spellcheck="false" aria-label="Handle point stroke hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="handles.point.stroke" aria-label="Make handle point stroke transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="cornerNodeFill" type="color" data-color-path="nodes.corner.fill">
               <label class="colour-label" for="cornerNodeFill">Corner node fill</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="nodes.corner.fill" aria-label="Corner node fill colour picker">
+                <input class="hex-colour" id="cornerNodeFill" type="text" data-color-path="nodes.corner.fill" maxlength="7" spellcheck="false" aria-label="Corner node fill hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="nodes.corner.fill" aria-label="Make corner node fill transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="cornerNodeStroke" type="color" data-color-path="nodes.corner.stroke">
               <label class="colour-label" for="cornerNodeStroke">Corner node stroke</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="nodes.corner.stroke" aria-label="Corner node stroke colour picker">
+                <input class="hex-colour" id="cornerNodeStroke" type="text" data-color-path="nodes.corner.stroke" maxlength="7" spellcheck="false" aria-label="Corner node stroke hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="nodes.corner.stroke" aria-label="Make corner node stroke transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="smoothNodeFill" type="color" data-color-path="nodes.smooth.fill">
               <label class="colour-label" for="smoothNodeFill">Smooth node fill</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="nodes.smooth.fill" aria-label="Smooth node fill colour picker">
+                <input class="hex-colour" id="smoothNodeFill" type="text" data-color-path="nodes.smooth.fill" maxlength="7" spellcheck="false" aria-label="Smooth node fill hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="nodes.smooth.fill" aria-label="Make smooth node fill transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="smoothNodeStroke" type="color" data-color-path="nodes.smooth.stroke">
               <label class="colour-label" for="smoothNodeStroke">Smooth node stroke</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="nodes.smooth.stroke" aria-label="Smooth node stroke colour picker">
+                <input class="hex-colour" id="smoothNodeStroke" type="text" data-color-path="nodes.smooth.stroke" maxlength="7" spellcheck="false" aria-label="Smooth node stroke hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="nodes.smooth.stroke" aria-label="Make smooth node stroke transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="metricGuides" type="color" data-color-path="metrics.line.color">
               <label class="colour-label" for="metricGuides">Metric guides</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="metrics.line.color" aria-label="Metric guides colour picker">
+                <input class="hex-colour" id="metricGuides" type="text" data-color-path="metrics.line.color" maxlength="7" spellcheck="false" aria-label="Metric guides hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="metrics.line.color" aria-label="Make metric guides transparent"> Transparent</label>
             </div>
             <div class="colour-control">
-              <input id="metricLabels" type="color" data-color-path="metrics.label_color">
               <label class="colour-label" for="metricLabels">Metric labels (text)</label>
+              <div class="colour-input-row">
+                <input type="color" data-color-picker="metrics.label_color" aria-label="Metric labels colour picker">
+                <input class="hex-colour" id="metricLabels" type="text" data-color-path="metrics.label_color" maxlength="7" spellcheck="false" aria-label="Metric labels hex colour">
+              </div>
+              <label class="mini-check"><input type="checkbox" data-transparent-path="metrics.label_color" aria-label="Make metric labels transparent"> Transparent</label>
             </div>
           </div>
         </section>
@@ -979,16 +1078,15 @@ _PAGE_TEMPLATE = r"""<!doctype html>
             </div>
           </div>
         </section>
-        <button class="primary" id="renderButton" type="submit">Render blueprint</button>
+        <button class="primary" id="exportButton" type="button" disabled>Export SVG</button>
       </form>
     </aside>
     <main>
       <div class="toolbar">
         <div id="status" role="status">Ready</div>
-        <button class="download" id="downloadButton" type="button" disabled>Download SVG</button>
       </div>
       <section class="stage" aria-label="SVG preview">
-        <div id="preview"><p class="empty">Choose a font and render. The bundled <code>examples/Roboto-Regular-subset.ufo</code> is a good starting point &mdash; try it with overlap removal on and off.</p></div>
+        <div id="preview"><p class="empty">Choose a font and the preview updates automatically. The bundled <code>examples/Roboto-Regular-subset.ufo</code> is a good starting point &mdash; try it with overlap removal on and off.</p></div>
       </section>
     </main>
   </div>
@@ -999,22 +1097,25 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     const form = document.querySelector("#controls");
     const preview = document.querySelector("#preview");
     const status = document.querySelector("#status");
-    const renderButton = document.querySelector("#renderButton");
-    const downloadButton = document.querySelector("#downloadButton");
+    const exportButton = document.querySelector("#exportButton");
     const resetColours = document.querySelector("#resetColours");
     const resetLabels = document.querySelector("#resetLabels");
     const fontFile = document.querySelector("#fontFile");
     const selectedFontName = document.querySelector("#selectedFontName");
-    const transparentBackground = document.querySelector("#transparentBackground");
+    const presetName = document.querySelector("#presetName");
+    const savePreset = document.querySelector("#savePreset");
+    const presetFile = document.querySelector("#presetFile");
     const fillOutline = document.querySelector("#fillOutline");
     const colorInputs = Array.from(form.querySelectorAll("[data-color-path]"));
+    const colorPickers = Array.from(form.querySelectorAll("[data-color-picker]"));
+    const transparentInputs = Array.from(
+      form.querySelectorAll("[data-transparent-path]")
+    );
     const sizeInputs = Array.from(form.querySelectorAll("[data-size-path]"));
     const labelInputs = Array.from(form.querySelectorAll("[data-label-path]"));
     const metricControls = Array.from(form.querySelectorAll("[data-metric-control]"));
     const metricNameInputs = Array.from(form.querySelectorAll('input[name="metric_names"]'));
     const metricLabelType = document.querySelector("#metricLabelType");
-    const backgroundInput = form.querySelector('[data-color-path="canvas.background"]');
-    const outlineFillInput = form.querySelector('[data-color-path="outline.fill"]');
     const labelFamily = document.querySelector("#labelFamily");
     const customLabelFamily = document.querySelector("#customLabelFamily");
     const customFamilyOption = document.querySelector("#customFamilyOption");
@@ -1030,6 +1131,15 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     const sizeSlidersByPath = new Map(
       sizeSliders.map((slider) => [slider.dataset.sizeSlider, slider])
     );
+    const colorInputsByPath = new Map(
+      colorInputs.map((input) => [input.dataset.colorPath, input])
+    );
+    const colorPickersByPath = new Map(
+      colorPickers.map((input) => [input.dataset.colorPicker, input])
+    );
+    const transparentInputsByPath = new Map(
+      transparentInputs.map((input) => [input.dataset.transparentPath, input])
+    );
     const optionalFillStrokes = {
       "handles.point.fill": "handles.point.stroke",
       "nodes.corner.fill": "nodes.corner.stroke",
@@ -1040,14 +1150,75 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     const touchedLabels = new Set();
     const discreteControls = Array.from(
       form.querySelectorAll('select, input[type="checkbox"]')
-    );
+    ).filter((input) => !input.dataset.transparentPath);
     const textNumberInputs = Array.from(
       form.querySelectorAll('input[type="text"], input[type="number"]')
-    ).filter((input) => input !== form.font_path);
+    ).filter(
+      (input) => (
+        input !== form.font_path &&
+        input !== presetName &&
+        !input.dataset.colorPath
+      )
+    );
     let latestSvg = "";
     let liveRenderTimer = null;
     let renderRequestCounter = 0;
-    let latestButtonRenderRequest = 0;
+
+    function normaliseHexColour(value) {
+      if (typeof value !== "string") return null;
+      let hex = value.trim();
+      if (!hex.startsWith("#")) hex = `#${hex}`;
+      if (/^#[0-9a-f]{3}$/i.test(hex)) {
+        hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+      }
+      if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
+      return hex.toUpperCase();
+    }
+
+    function syncColorDisabledState(path) {
+      const transparent = transparentInputsByPath.get(path).checked;
+      const fillDisabled = path === "outline.fill" && !fillOutline.checked;
+      colorInputsByPath.get(path).disabled = transparent || fillDisabled;
+      colorPickersByPath.get(path).disabled = transparent || fillDisabled;
+    }
+
+    function fallbackColour(path, presetColors) {
+      const strokePath = optionalFillStrokes[path] || "outline.stroke";
+      return (
+        normaliseHexColour(presetColors[strokePath]) ||
+        normaliseHexColour(colorInputsByPath.get(path).value) ||
+        "#000000"
+      );
+    }
+
+    function setColorControl(path, value, presetColors) {
+      const textInput = colorInputsByPath.get(path);
+      const picker = colorPickersByPath.get(path);
+      const transparentInput = transparentInputsByPath.get(path);
+      const transparent = value === null || value === "none";
+      const normalised = (
+        normaliseHexColour(value) ||
+        fallbackColour(path, presetColors)
+      );
+      textInput.value = normalised;
+      textInput.setCustomValidity("");
+      textInput.setAttribute("aria-invalid", "false");
+      picker.value = normalised.toLowerCase();
+      transparentInput.checked = transparent;
+      syncColorDisabledState(path);
+    }
+
+    function currentColour(path) {
+      if (transparentInputsByPath.get(path).checked) return "none";
+      const input = colorInputsByPath.get(path);
+      const normalised = normaliseHexColour(input.value);
+      if (normalised === null) {
+        throw new Error(
+          `${input.getAttribute("aria-label")} must use #RGB or #RRGGBB`
+        );
+      }
+      return normalised;
+    }
 
     function syncSizeFromNumber(input) {
       const slider = sizeSlidersByPath.get(input.dataset.sizePath);
@@ -1112,17 +1283,10 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       if (!presetColors) return;
       colorInputs.forEach((input) => {
         const path = input.dataset.colorPath;
-        let value = presetColors[path];
-        if (value === null) {
-          const strokePath = optionalFillStrokes[path] || "outline.stroke";
-          value = presetColors[strokePath];
-        }
-        input.value = value;
+        setColorControl(path, presetColors[path], presetColors);
       });
-      transparentBackground.checked = presetColors["canvas.background"] === null;
-      backgroundInput.disabled = transparentBackground.checked;
       fillOutline.checked = presetColors.fill_enabled;
-      outlineFillInput.disabled = !fillOutline.checked;
+      syncColorDisabledState("outline.fill");
       touchedColors.clear();
     }
 
@@ -1169,11 +1333,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       colorInputs.forEach((input) => {
         const path = input.dataset.colorPath;
         if (!touchedColors.has(path)) return;
-        colors[path] = (
-          path === "canvas.background" && transparentBackground.checked
-            ? "none"
-            : input.value
-        );
+        colors[path] = currentColour(path);
       });
       sizeInputs.forEach((input) => {
         const path = input.dataset.sizePath;
@@ -1226,6 +1386,341 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       return request;
     }
 
+    function stylePresetPayload() {
+      const markerShape = form.shape.value;
+      const config = {
+        preset: form.preset.value,
+        canvas: {
+          background: currentColour("canvas.background"),
+          frame: form.frame.value,
+          width: Number(form.width.value)
+        },
+        outline: {
+          stroke: currentColour("outline.stroke"),
+          fill: currentColour("outline.fill"),
+          width: Number(sizeInputsByPath.get("outline.width").value),
+          fill_enabled: fillOutline.checked
+        },
+        handles: {
+          point: {
+            fill: currentColour("handles.point.fill"),
+            stroke: currentColour("handles.point.stroke"),
+            size: Number(sizeInputsByPath.get("handles.point.size").value),
+            stroke_width: Number(
+              sizeInputsByPath.get("handles.point.stroke_width").value
+            )
+          },
+          line: {
+            color: currentColour("handles.line.color"),
+            width: Number(sizeInputsByPath.get("handles.line.width").value)
+          }
+        },
+        nodes: {
+          corner: {
+            fill: currentColour("nodes.corner.fill"),
+            stroke: currentColour("nodes.corner.stroke"),
+            size: Number(sizeInputsByPath.get("nodes.corner.size").value),
+            stroke_width: Number(
+              sizeInputsByPath.get("nodes.corner.stroke_width").value
+            )
+          },
+          smooth: {
+            fill: currentColour("nodes.smooth.fill"),
+            stroke: currentColour("nodes.smooth.stroke"),
+            size: Number(sizeInputsByPath.get("nodes.smooth.size").value),
+            stroke_width: Number(
+              sizeInputsByPath.get("nodes.smooth.stroke_width").value
+            )
+          }
+        },
+        metrics: {
+          visible: form.metrics.checked,
+          show: metricNameInputs
+            .filter((input) => input.checked)
+            .map((input) => input.value),
+          line: {
+            color: currentColour("metrics.line.color"),
+            width: Number(sizeInputsByPath.get("metrics.line.width").value),
+            visible: form.metric_lines.checked
+          },
+          sidebearing_line: {
+            visible: form.metric_lines.checked
+          },
+          labels: form.metric_numbers.checked,
+          label_color: currentColour("metrics.label_color"),
+          label_size: Number(labelSize.value),
+          label_family: selectedLabelFamily(),
+          label_weight: labelWeight.value,
+          label_style: labelStyle.value
+        }
+      };
+      if (markerShape) {
+        config.handles.point.shape = markerShape;
+        config.nodes.corner.shape = markerShape;
+        config.nodes.smooth.shape = markerShape;
+      }
+      return config;
+    }
+
+    function safeDownloadName(value) {
+      let name = value
+        .trim()
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+        .replace(/[\s.-]+$/g, "")
+        .replace(/\s+/g, "-")
+        .slice(0, 80);
+      if (!name) name = "type-design-xray-preset";
+      const stem = name.split(".")[0].toUpperCase();
+      if (
+        /^(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³])$/.test(stem)
+      ) {
+        name = `_${name}`;
+      }
+      return `${name}.json`;
+    }
+
+    function downloadText(text, type, filename) {
+      const url = URL.createObjectURL(new Blob([text], {type}));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+
+    function exportCurrentPreset() {
+      const name = presetName.value.trim();
+      if (!name) {
+        presetName.setCustomValidity("Give this preset a name first.");
+        presetName.reportValidity();
+        return;
+      }
+      presetName.setCustomValidity("");
+      try {
+        const filename = safeDownloadName(name);
+        const config = stylePresetPayload();
+        downloadText(
+          `${JSON.stringify(config, null, 2)}\n`,
+          "application/json",
+          filename
+        );
+        status.className = "";
+        status.textContent = `Exported preset ${filename}`;
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    function nestedValue(source, path) {
+      let value = source;
+      for (const part of path.split(".")) {
+        if (
+          value === null ||
+          typeof value !== "object" ||
+          !Object.prototype.hasOwnProperty.call(value, part)
+        ) {
+          return {found: false, value: undefined};
+        }
+        value = value[part];
+      }
+      return {found: true, value};
+    }
+
+    function applyLoadedPreset(config) {
+      if (
+        config === null ||
+        typeof config !== "object" ||
+        Array.isArray(config)
+      ) {
+        throw new Error("Preset JSON must contain an object.");
+      }
+      const basePreset = (
+        typeof config.preset === "string" && config.preset.trim()
+          ? config.preset.trim()
+          : "blueprint"
+      );
+      if (!Object.prototype.hasOwnProperty.call(PRESET_COLORS, basePreset)) {
+        throw new Error(`Unknown base preset "${basePreset}".`);
+      }
+
+      form.preset.value = basePreset;
+      seedControlsFromPreset();
+      const presetColors = PRESET_COLORS[basePreset];
+
+      colorInputs.forEach((input) => {
+        const path = input.dataset.colorPath;
+        const loaded = nestedValue(config, path);
+        if (!loaded.found) return;
+        const isTransparent = (
+          loaded.value === null ||
+          (
+            typeof loaded.value === "string" &&
+            loaded.value.toLowerCase() === "none"
+          )
+        );
+        if (!isTransparent && normaliseHexColour(loaded.value) === null) {
+          throw new Error(
+            `Invalid colour for ${path}; use #RGB, #RRGGBB, or "none".`
+          );
+        }
+        setColorControl(
+          path,
+          isTransparent ? "none" : loaded.value,
+          presetColors
+        );
+        touchedColors.add(path);
+      });
+
+      sizeInputs.forEach((input) => {
+        const path = input.dataset.sizePath;
+        const loaded = nestedValue(config, path);
+        if (!loaded.found) return;
+        const number = Number(loaded.value);
+        if (!Number.isFinite(number)) {
+          throw new Error(`Invalid numeric value for ${path}.`);
+        }
+        input.value = String(number);
+        syncSizeFromNumber(input);
+        touchedSizes.add(path);
+      });
+
+      const loadedFamily = nestedValue(config, "metrics.label_family");
+      if (loadedFamily.found) {
+        if (typeof loadedFamily.value !== "string") {
+          throw new Error("Metric label family must be a string.");
+        }
+        setLabelFamily(loadedFamily.value);
+        touchedLabels.add("metrics.label_family");
+      }
+      const loadedLabelSize = nestedValue(config, "metrics.label_size");
+      if (loadedLabelSize.found) {
+        const number = Number(loadedLabelSize.value);
+        if (!Number.isFinite(number)) {
+          throw new Error("Metric label size must be a number.");
+        }
+        labelSize.value = String(number);
+        syncLabelSizeFromNumber();
+        touchedLabels.add("metrics.label_size");
+      }
+      for (const [path, input] of [
+        ["metrics.label_weight", labelWeight],
+        ["metrics.label_style", labelStyle]
+      ]) {
+        const loaded = nestedValue(config, path);
+        if (!loaded.found) continue;
+        const available = Array.from(input.options).some(
+          (option) => option.value === String(loaded.value)
+        );
+        if (!available) throw new Error(`Unsupported value for ${path}.`);
+        input.value = String(loaded.value);
+        touchedLabels.add(path);
+      }
+
+      const loadedFrame = nestedValue(config, "canvas.frame");
+      if (loadedFrame.found) {
+        const available = Array.from(form.frame.options).some(
+          (option) => option.value === String(loadedFrame.value)
+        );
+        if (!available) throw new Error("Unsupported canvas frame.");
+        form.frame.value = String(loadedFrame.value);
+      }
+      const loadedWidth = nestedValue(config, "canvas.width");
+      if (loadedWidth.found) {
+        const width = Number(loadedWidth.value);
+        if (!Number.isFinite(width) || width < 320 || width > 4000) {
+          throw new Error("Canvas width must be between 320 and 4000.");
+        }
+        form.width.value = String(width);
+      }
+      const loadedFill = nestedValue(config, "outline.fill_enabled");
+      if (loadedFill.found) {
+        if (typeof loadedFill.value !== "boolean") {
+          throw new Error("Outline fill setting must be true or false.");
+        }
+        fillOutline.checked = loadedFill.value;
+        syncColorDisabledState("outline.fill");
+      }
+
+      const shapePaths = [
+        "handles.point.shape",
+        "nodes.corner.shape",
+        "nodes.smooth.shape"
+      ];
+      const shapes = shapePaths
+        .map((path) => nestedValue(config, path))
+        .filter((loaded) => loaded.found)
+        .map((loaded) => String(loaded.value));
+      if (shapes.length) {
+        const uniqueShapes = new Set(shapes);
+        if (uniqueShapes.size !== 1) {
+          throw new Error(
+            "This preset uses different marker shapes; the preview has one shared marker-shape control."
+          );
+        }
+        const shape = shapes[0];
+        const available = Array.from(form.shape.options).some(
+          (option) => option.value === shape
+        );
+        if (!available) throw new Error(`Unsupported marker shape "${shape}".`);
+        form.shape.value = shape;
+      } else {
+        form.shape.value = "";
+      }
+
+      const loadedMetrics = nestedValue(config, "metrics.visible");
+      if (loadedMetrics.found) {
+        if (typeof loadedMetrics.value !== "boolean") {
+          throw new Error("Metrics visibility must be true or false.");
+        }
+        form.metrics.checked = loadedMetrics.value;
+      }
+      const loadedMetricLines = nestedValue(config, "metrics.line.visible");
+      if (loadedMetricLines.found) {
+        if (typeof loadedMetricLines.value !== "boolean") {
+          throw new Error("Metric-line visibility must be true or false.");
+        }
+        form.metric_lines.checked = loadedMetricLines.value;
+      }
+      const loadedMetricLabels = nestedValue(config, "metrics.labels");
+      if (loadedMetricLabels.found) {
+        if (typeof loadedMetricLabels.value !== "boolean") {
+          throw new Error("Metric-label visibility must be true or false.");
+        }
+        form.metric_numbers.checked = loadedMetricLabels.value;
+      }
+      const loadedMetricNames = nestedValue(config, "metrics.show");
+      if (loadedMetricNames.found) {
+        if (!Array.isArray(loadedMetricNames.value)) {
+          throw new Error("Metric names must be an array.");
+        }
+        const selected = new Set(loadedMetricNames.value.map(String));
+        metricNameInputs.forEach((input) => {
+          input.checked = selected.has(input.value);
+        });
+      }
+      updateMetricControls();
+    }
+
+    async function loadPresetFile() {
+      const file = presetFile.files[0];
+      if (!file) return;
+      try {
+        const config = JSON.parse(await file.text());
+        applyLoadedPreset(config);
+        presetName.value = file.name.replace(/\.json$/i, "");
+        presetName.setCustomValidity("");
+        renderLiveNow();
+      } catch (error) {
+        showError(
+          new Error(`Could not load preset ${file.name}: ${error.message}`)
+        );
+      } finally {
+        presetFile.value = "";
+      }
+    }
+
     function showError(error) {
       status.className = "error";
       status.textContent = error.message;
@@ -1239,30 +1734,25 @@ _PAGE_TEMPLATE = r"""<!doctype html>
 
     function renderLiveNow() {
       cancelLiveRender();
+      exportButton.disabled = true;
       if (!form.font_path.value.trim()) return;
-      renderBlueprint(null, {live: true});
+      const colorsValid = colorInputs.every((input) => input.checkValidity());
+      if (!colorsValid) return;
+      renderBlueprint();
     }
 
     function scheduleLiveRender(delay = 250) {
       cancelLiveRender();
+      exportButton.disabled = true;
       liveRenderTimer = window.setTimeout(() => {
         liveRenderTimer = null;
         renderLiveNow();
       }, delay);
     }
 
-    async function renderBlueprint(event, options = {}) {
-      if (event) {
-        event.preventDefault();
-        cancelLiveRender();
-      }
-      const live = options.live === true;
+    async function renderBlueprint() {
       const requestId = ++renderRequestCounter;
-      if (!live) {
-        renderButton.disabled = true;
-        downloadButton.disabled = true;
-        latestButtonRenderRequest = requestId;
-      }
+      exportButton.disabled = true;
       status.className = "";
       status.textContent = "Rendering…";
       try {
@@ -1278,14 +1768,10 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         preview.innerHTML = result.svg;
         const details = result.summary;
         status.textContent = `${details.glyphs} glyphs · ${details.nodes} nodes · ${details.width} × ${details.height}`;
-        downloadButton.disabled = false;
+        exportButton.disabled = false;
       } catch (error) {
         if (requestId !== renderRequestCounter) return;
         showError(error);
-      } finally {
-        if (!live && requestId === latestButtonRenderRequest) {
-          renderButton.disabled = false;
-        }
       }
     }
 
@@ -1293,8 +1779,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       const file = fontFile.files[0];
       if (!file) return;
       selectedFontName.textContent = file.name;
-      renderButton.disabled = true;
-      downloadButton.disabled = true;
+      exportButton.disabled = true;
       status.className = "";
       status.textContent = "Uploading…";
       try {
@@ -1313,8 +1798,6 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         await renderBlueprint();
       } catch (error) {
         showError(error);
-      } finally {
-        renderButton.disabled = false;
       }
     }
 
@@ -1339,8 +1822,48 @@ _PAGE_TEMPLATE = r"""<!doctype html>
 
     colorInputs.forEach((input) => {
       input.addEventListener("input", () => {
-        touchedColors.add(input.dataset.colorPath);
+        const path = input.dataset.colorPath;
+        const normalised = normaliseHexColour(input.value);
+        if (normalised === null) {
+          input.setCustomValidity("Use #RGB or #RRGGBB.");
+          input.setAttribute("aria-invalid", "true");
+          exportButton.disabled = true;
+          status.className = "error";
+          status.textContent = `${input.getAttribute("aria-label")} must use #RGB or #RRGGBB`;
+          return;
+        }
+        input.setCustomValidity("");
+        input.setAttribute("aria-invalid", "false");
+        colorPickersByPath.get(path).value = normalised.toLowerCase();
+        transparentInputsByPath.get(path).checked = false;
+        syncColorDisabledState(path);
+        touchedColors.add(path);
         scheduleLiveRender();
+      });
+      input.addEventListener("change", () => {
+        const normalised = normaliseHexColour(input.value);
+        if (normalised !== null) input.value = normalised;
+      });
+    });
+    colorPickers.forEach((picker) => {
+      picker.addEventListener("input", () => {
+        const path = picker.dataset.colorPicker;
+        const input = colorInputsByPath.get(path);
+        input.value = picker.value.toUpperCase();
+        input.setCustomValidity("");
+        input.setAttribute("aria-invalid", "false");
+        transparentInputsByPath.get(path).checked = false;
+        syncColorDisabledState(path);
+        touchedColors.add(path);
+        scheduleLiveRender();
+      });
+    });
+    transparentInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        const path = input.dataset.transparentPath;
+        syncColorDisabledState(path);
+        touchedColors.add(path);
+        renderLiveNow();
       });
     });
     sizeInputs.forEach((input) => {
@@ -1378,12 +1901,8 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     labelStyle.addEventListener("change", () => {
       touchedLabels.add("metrics.label_style");
     });
-    transparentBackground.addEventListener("change", () => {
-      backgroundInput.disabled = transparentBackground.checked;
-      touchedColors.add("canvas.background");
-    });
     fillOutline.addEventListener("change", () => {
-      outlineFillInput.disabled = !fillOutline.checked;
+      syncColorDisabledState("outline.fill");
     });
     form.preset.addEventListener("change", seedControlsFromPreset);
     resetColours.addEventListener("click", () => {
@@ -1406,19 +1925,27 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     });
     form.font_path.addEventListener("input", () => {
       cancelLiveRender();
+      exportButton.disabled = true;
       if (!form.font_path.value.trim()) return;
       scheduleLiveRender(600);
     });
-    form.addEventListener("submit", renderBlueprint);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      renderLiveNow();
+    });
     fontFile.addEventListener("change", uploadFont);
-    downloadButton.addEventListener("click", () => {
+    presetName.addEventListener("input", () => {
+      presetName.setCustomValidity("");
+    });
+    savePreset.addEventListener("click", exportCurrentPreset);
+    presetFile.addEventListener("change", loadPresetFile);
+    exportButton.addEventListener("click", () => {
       if (!latestSvg) return;
-      const url = URL.createObjectURL(new Blob([latestSvg], {type: "image/svg+xml"}));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "type-design-xray.svg";
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadText(
+        latestSvg,
+        "image/svg+xml",
+        "type-design-xray.svg"
+      );
     });
 
     seedControlsFromPreset();
