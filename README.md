@@ -105,11 +105,12 @@ The fastest way to try it. Start the preview:
 ```
 
 Then open **[http://127.0.0.1:8765/](http://127.0.0.1:8765/)** in your browser
-and put the full path to a font file in the **Font path** box. It runs entirely
-on your own computer — nothing is uploaded anywhere — and uses the same Python
-parsing, layout, compounding and SVG rendering code as the command-line tool,
-so what you see is what the exporter produces. Press Ctrl-C in the terminal to
-stop it.
+and choose a font file. Everything stays on your own computer: the server binds
+to localhost only, and nothing is sent over the internet. (Choosing a file with
+the picker copies it to a temporary folder on your machine, which is deleted
+when you stop the server.) It uses the same Python parsing, layout, compounding
+and SVG rendering code as the command-line tool, so what you see is what the
+exporter produces. Press Ctrl-C in the terminal to stop it.
 
 It gives you, live:
 
