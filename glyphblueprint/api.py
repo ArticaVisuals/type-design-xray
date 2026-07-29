@@ -175,10 +175,15 @@ def _directory_target(
     raw_path = os.fspath(out)
     raw_text = os.fsdecode(raw_path)
     trailing_separator = raw_text.endswith(("/", "\\"))
+    destination = Path(raw_path)
     return (
-        Path(raw_path).is_dir()
+        destination.is_dir()
         or trailing_separator
-        or (per_glyph and len(format_names) > 1)
+        or (
+            per_glyph
+            and len(format_names) > 1
+            and not destination.suffix
+        )
     )
 
 
@@ -225,8 +230,12 @@ def _output_plan(
                 base = full_first
                 if base.suffix.lower() in (".svg", ".png", ".pdf"):
                     base = base.with_suffix("")
+                run_label = documents[0][0]
+                glyph_label = label
+                if label.startswith("{}-".format(run_label)):
+                    glyph_label = label[len(run_label) + 1 :]
                 path = Path(
-                    "{}-{}.{}".format(base, label.split("-", 1)[-1], format_name)
+                    "{}-{}.{}".format(base, glyph_label, format_name)
                 )
             plan.append((format_name, svg, path))
     return plan

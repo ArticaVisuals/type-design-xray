@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from glyphblueprint import ir
@@ -141,9 +143,11 @@ def test_resolves_cmap_then_falls_back_to_character_glyph_name() -> None:
 
 def test_slash_escaped_names_literal_slash_and_mixed_input() -> None:
     font = make_font()
+    font.glyphs["a-alt"] = ir.Glyph(name="a-alt", advance_width=495.0)
 
     mixed = layout_string(font, "A/ampersand B//")
     chained = layout_string(font, "/a.alt/a/f/z")
+    punctuation = layout_string(font, "///a.alt/a-alt//")
 
     assert glyph_names(mixed) == ["A", "ampersand", "space", "B", "slash"]
     assert [glyph.source_char for glyph in mixed.glyphs] == [
@@ -160,6 +164,20 @@ def test_slash_escaped_names_literal_slash_and_mixed_input() -> None:
         "/f",
         "/z",
     ]
+    assert glyph_names(punctuation) == ["slash", "a.alt", "a-alt", "slash"]
+
+
+@pytest.mark.parametrize("text", ["/", "/a.alt/"])
+def test_incomplete_trailing_slash_escape_is_never_silently_skipped(
+    text: str,
+) -> None:
+    font = make_font()
+
+    for missing in ("error", "skip", "notdef"):
+        with pytest.raises(ValueError) as error:
+            layout_string(font, text, missing=missing)
+        assert "has no name" in str(error.value)
+        assert "'//' for a literal slash" in str(error.value)
 
 
 def test_missing_glyph_policies() -> None:
@@ -199,3 +217,31 @@ def test_layout_per_glyph_returns_independent_single_glyph_layouts() -> None:
     assert [layout.glyphs[0].kern_before for layout in layouts] == [0.0, 0.0]
     assert [layout.total_advance for layout in layouts] == [600.0, 580.0]
     assert [layout.glyphs[0].source_char for layout in layouts] == ["A", "V"]
+
+
+@pytest.mark.parametrize("tracking", [math.nan, math.inf, -math.inf])
+def test_nonfinite_tracking_is_rejected(tracking: float) -> None:
+    with pytest.raises(ValueError, match="tracking must be a finite number"):
+        layout_string(make_font(), "AB", tracking=tracking)
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_nonfinite_width_and_kerning_are_rejected(value: float) -> None:
+    font = make_font()
+    font.glyphs["A"].advance_width = value
+    with pytest.raises(ValueError, match="advance width for glyph 'A'"):
+        layout_string(font, "A")
+
+    font = make_font()
+    font.kerning[("A", "V")] = value
+    with pytest.raises(ValueError, match="kerning value for pair"):
+        layout_string(font, "AV")
+
+
+def test_finite_inputs_that_overflow_the_layout_are_rejected() -> None:
+    font = make_font()
+    font.glyphs["A"].advance_width = 1e308
+    font.glyphs["B"].advance_width = 1e308
+
+    with pytest.raises(ValueError, match="layout advance became non-finite"):
+        layout_string(font, "AB")

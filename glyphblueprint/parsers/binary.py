@@ -386,6 +386,12 @@ def parse_binary(
         metrics = _font_metrics(font)
         cmap = dict(font.getBestCmap() or {})
         glyph_order = font.getGlyphOrder()
+        horizontal_metrics = font["hmtx"].metrics
+        missing_horizontal_metrics = {
+            name for name in glyph_order if name not in horizontal_metrics
+        }
+        for glyph_name in missing_horizontal_metrics:
+            horizontal_metrics[glyph_name] = (0, 0)
         if glyph_names is not None:
             requested = (
                 {glyph_names}
@@ -399,7 +405,6 @@ def parse_binary(
             unicodes_by_name[glyph_name].append(codepoint)
 
         glyph_set = font.getGlyphSet()
-        horizontal_metrics = font["hmtx"].metrics
         glyphs: Dict[str, ir.Glyph] = {}
         for glyph_name in glyph_order:
             recording_pen = DecomposingRecordingPen(glyph_set)
@@ -413,7 +418,11 @@ def parse_binary(
             glyph_set[glyph_name].draw(bounds_pen)
             bounds = bounds_pen.bounds
 
-            advance, lsb = horizontal_metrics[glyph_name]
+            if glyph_name in missing_horizontal_metrics:
+                advance = 0.0
+                lsb = bounds[0] if bounds is not None else 0.0
+            else:
+                advance, lsb = horizontal_metrics[glyph_name]
             advance = float(advance)
             lsb = float(lsb)
             glyphs[glyph_name] = ir.Glyph(

@@ -12,9 +12,6 @@ from glyphblueprint import ir
 from glyphblueprint.parsers import plist
 
 
-_MAX_COMPONENT_DEPTH = 32
-
-
 @dataclass
 class _SourceNode:
     point: ir.Point
@@ -67,15 +64,21 @@ def parse_glyphs(
         selected_layer = _select_layer(
             glyph_record, requested_layer, master_id, master_ids
         )
-        contours = _glyph_contours(
-            glyph_name,
-            glyph_records,
-            requested_layer,
-            master_id,
-            master_ids,
-            (),
-            0,
-        )
+        try:
+            contours = _glyph_contours(
+                glyph_name,
+                glyph_records,
+                requested_layer,
+                master_id,
+                master_ids,
+                (),
+            )
+        except ValueError as error:
+            raise ValueError(
+                "{}: invalid outline in glyph {!r}: {}".format(
+                    os.fspath(path), glyph_name, error
+                )
+            ) from error
         width = _number(selected_layer.get("width"), 0.0)
         glyph_metrics = _copy_metrics(font_metrics)
         anchors = [
@@ -259,9 +262,8 @@ def _glyph_contours(
     master_id: str,
     master_ids: Iterable[str],
     stack: Tuple[str, ...],
-    depth: int,
 ) -> List[ir.Contour]:
-    if depth >= _MAX_COMPONENT_DEPTH or glyph_name in stack:
+    if glyph_name in stack:
         return []
     glyph = glyphs.get(glyph_name)
     if glyph is None:
@@ -283,7 +285,6 @@ def _glyph_contours(
             master_id,
             master_ids,
             next_stack,
-            depth + 1,
         )
         transform = _component_transform(shape)
         contours.extend(
@@ -318,7 +319,7 @@ def _assemble_contour(path: Dict[str, Any]) -> ir.Contour:
     leading: List[ir.Point] = []
     pending: List[ir.Point] = []
     nodes: List[ir.Node] = []
-    source_kinds: List[str] = []
+    first_source_kind = ""
 
     for raw_node in _items(path.get("nodes")):
         source = _decode_node(raw_node)
@@ -340,40 +341,100 @@ def _assemble_contour(path: Dict[str, Any]) -> ir.Contour:
             smooth=source.smooth,
         )
         if nodes:
-            _assign_segment(nodes[-1], node, source.kind, pending)
-        nodes.append(node)
-        source_kinds.append(source.kind)
+            _append_segment(nodes, node, source.kind, pending, True)
+        else:
+            nodes.append(node)
+            first_source_kind = source.kind
         pending = []
 
+    if not nodes and leading:
+        if not closed:
+            raise ValueError(
+                "an open Glyphs contour cannot contain only off-curve points"
+            )
+        return _all_off_curve_contour(leading)
     if closed and nodes:
         wrap_controls = pending + leading
-        _assign_segment(
-            nodes[-1], nodes[0], source_kinds[0], wrap_controls
+        _append_segment(
+            nodes, nodes[0], first_source_kind, wrap_controls, False
         )
     return ir.Contour(nodes=nodes, closed=closed)
 
 
-def _assign_segment(
-    start: ir.Node,
+def _append_segment(
+    nodes: List[ir.Node],
     end: ir.Node,
     end_kind: str,
     controls: Sequence[ir.Point],
+    append_end: bool,
 ) -> None:
+    start = nodes[-1]
     if end_kind == "quadratic":
+        if not controls:
+            raise ValueError(
+                "a quadratic Glyphs segment requires an off-curve point"
+            )
+        for index, control in enumerate(controls):
+            if index + 1 < len(controls):
+                implied = ir.Node(
+                    point=_midpoint(control, controls[index + 1]),
+                    type=ir.SEGMENT_CURVE,
+                    smooth=True,
+                )
+                _assign_quadratic(nodes[-1], implied, control)
+                nodes.append(implied)
+            else:
+                _assign_quadratic(nodes[-1], end, control)
+    elif end_kind != "curve":
+        end.type = ir.SEGMENT_LINE
+    else:
         end.type = ir.SEGMENT_CURVE
         if controls:
-            start.handle_out, end.handle_in = ir.quadratic_to_cubic(
-                start.point, controls[0], end.point
-            )
-        return
-    if end_kind != "curve":
-        end.type = ir.SEGMENT_LINE
-        return
+            start.handle_out = controls[0]
+        if len(controls) > 1:
+            end.handle_in = controls[1]
+
+    if append_end:
+        nodes.append(end)
+
+
+def _assign_quadratic(
+    start: ir.Node, end: ir.Node, control: ir.Point
+) -> None:
+    start.handle_out, end.handle_in = ir.quadratic_to_cubic(
+        start.point, control, end.point
+    )
     end.type = ir.SEGMENT_CURVE
-    if controls:
-        start.handle_out = controls[0]
-    if len(controls) > 1:
-        end.handle_in = controls[1]
+
+
+def _all_off_curve_contour(
+    controls: Sequence[ir.Point],
+) -> ir.Contour:
+    start = ir.Node(
+        point=_midpoint(controls[-1], controls[0]),
+        type=ir.SEGMENT_CURVE,
+        smooth=True,
+    )
+    nodes = [start]
+    for index, control in enumerate(controls):
+        if index + 1 < len(controls):
+            end = ir.Node(
+                point=_midpoint(control, controls[index + 1]),
+                type=ir.SEGMENT_CURVE,
+                smooth=True,
+            )
+            _assign_quadratic(nodes[-1], end, control)
+            nodes.append(end)
+        else:
+            _assign_quadratic(nodes[-1], start, control)
+    return ir.Contour(nodes=nodes, closed=True)
+
+
+def _midpoint(first: ir.Point, second: ir.Point) -> ir.Point:
+    return (
+        0.5 * (first[0] + second[0]),
+        0.5 * (first[1] + second[1]),
+    )
 
 
 def _decode_node(raw: Any) -> _SourceNode:
@@ -382,10 +443,19 @@ def _decode_node(raw: Any) -> _SourceNode:
     else:
         text = _text(raw).strip().strip("()")
         parts = [item for item in re.split(r"[\s,]+", text) if item]
-    if len(parts) < 3:
-        raise ValueError("invalid Glyphs node {!r}".format(raw))
+    if (
+        len(parts) not in (3, 4)
+        or (len(parts) == 4 and parts[3].lower() != "smooth")
+    ):
+        raise ValueError(
+            "invalid Glyphs node {!r}: expected x, y, type, and optional "
+            "SMOOTH".format(raw)
+        )
 
-    point = (_number(parts[0]), _number(parts[1]))
+    point = (
+        _node_coordinate(parts[0], raw),
+        _node_coordinate(parts[1], raw),
+    )
     node_type = parts[2].strip().lower()
     extra = {item.strip().lower() for item in parts[3:]}
     smooth = "smooth" in extra
@@ -406,6 +476,24 @@ def _decode_node(raw: Any) -> _SourceNode:
             "unsupported Glyphs node type {!r}".format(parts[2])
         )
     return _SourceNode(point=point, kind=kind, smooth=smooth)
+
+
+def _node_coordinate(value: Any, raw: Any) -> float:
+    try:
+        coordinate = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "non-numeric coordinate {!r} in Glyphs node {!r}".format(
+                value, raw
+            )
+        ) from error
+    if not math.isfinite(coordinate):
+        raise ValueError(
+            "non-finite coordinate {!r} in Glyphs node {!r}".format(
+                value, raw
+            )
+        )
+    return coordinate
 
 
 def _component_transform(
@@ -506,8 +594,14 @@ def _read_metrics(
         }.get(metric_type)
         if attribute is None:
             continue
-        metric_value = values[index] if index < len(values) else {}
-        found[attribute] = _number(metric_value.get("pos"), 0.0)
+        if index >= len(values) or "pos" not in values[index]:
+            continue
+        try:
+            position = float(values[index].get("pos"))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(position):
+            found[attribute] = position
 
     fallbacks = {
         "ascender": "ascender",
@@ -517,7 +611,12 @@ def _read_metrics(
     }
     for attribute, key in fallbacks.items():
         if attribute not in found and key in master:
-            found[attribute] = _number(master.get(key), 0.0)
+            try:
+                position = float(master.get(key))
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(position):
+                found[attribute] = position
     return ir.Metrics(
         baseline=found.get("baseline", 0.0),
         x_height=found.get("x_height"),

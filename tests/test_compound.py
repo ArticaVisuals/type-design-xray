@@ -6,7 +6,14 @@ from typing import Dict, Iterable, Tuple
 import pytest
 
 from glyphblueprint import ir
-from glyphblueprint.compound import compound_glyph, is_available
+from glyphblueprint.compound import (
+    _contour_from_path,
+    _expand_quadratics,
+    _matched_smooth,
+    compound_font,
+    compound_glyph,
+    is_available,
+)
 from glyphblueprint.parsers.binary import parse_binary
 from glyphblueprint.parsers.glyphs import parse_glyphs
 
@@ -164,6 +171,56 @@ def test_glyph_with_only_open_contours_is_returned_unchanged(
     assert result.contours[0] is open_contour
 
 
+def test_single_node_open_contour_passes_through_exactly() -> None:
+    point = (468.0, 542.0)
+    open_contour = _contour([point], closed=False, smooth=True)
+
+    result = compound_glyph(_glyph(open_contour, name="y"))
+
+    assert result.contours == [open_contour]
+    assert result.contours[0] is open_contour
+    assert result.contours[0].nodes[0].point == point
+
+
+def test_nearby_smooth_flags_are_not_guessed_when_match_is_ambiguous() -> None:
+    left_first = {(0.0, 0.0): False, (0.01, 0.0): True}
+    right_first = dict(reversed(list(left_first.items())))
+
+    assert _matched_smooth((0.005, 0.0), left_first) is None
+    assert _matched_smooth((0.005, 0.0), right_first) is None
+    assert _matched_smooth((0.001, 0.0), left_first) is False
+    assert _matched_smooth((0.009, 0.0), left_first) is True
+
+
+def test_compound_font_preserves_layout_and_font_metadata() -> None:
+    empty = _glyph(name="space")
+    font = ir.Font(
+        glyphs={"space": empty},
+        units_per_em=2048.0,
+        metrics=ir.Metrics(ascender=900.0, descender=-250.0),
+        cmap={ord(" "): "space"},
+        kerning={("space", "space"): -10.0},
+        kern_group_left={"space": "@MMK_L_space"},
+        kern_group_right={"space": "@MMK_R_space"},
+        family_name="Test Family",
+        master_name="Regular",
+        source_format="glyphs",
+    )
+
+    result = compound_font(font)
+
+    assert result.glyphs["space"].advance_width == empty.advance_width
+    assert result.units_per_em == font.units_per_em
+    assert result.metrics is font.metrics
+    assert result.cmap is font.cmap
+    assert result.kerning is font.kerning
+    assert result.kern_group_left is font.kern_group_left
+    assert result.kern_group_right is font.kern_group_right
+    assert result.family_name == font.family_name
+    assert result.master_name == font.master_name
+    assert result.source_format == font.source_format
+
+
 def test_real_source_f_matches_exported_otf() -> None:
     if not REAL_SOURCE.is_file() or not REAL_OTF.is_file():
         pytest.skip("real CaliperSans source and OTF are not available")
@@ -220,8 +277,6 @@ def test_quadratic_segments_from_skia_are_upconverted_to_cubics():
 
 
 def test_multiple_consecutive_off_curve_points_imply_midpoints():
-    from glyphblueprint.compound import _expand_quadratics
-
     segments = [
         ("moveTo", ((0.0, 0.0),)),
         ("qCurveTo", ((20.0, 40.0), (60.0, 40.0), (80.0, 0.0))),
@@ -233,6 +288,46 @@ def test_multiple_consecutive_off_curve_points_imply_midpoints():
     # the implied on-curve point sits midway between the two controls
     assert curves[0][2] == pytest.approx((40.0, 40.0))
     assert curves[1][2] == (80.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "segments",
+    [
+        [("moveTo", ((0.0, 0.0),)), ("qCurveTo", ()), ("closePath", ())],
+        [
+            ("moveTo", ((0.0, 0.0),)),
+            ("qCurveTo", ((10.0, 10.0), None)),
+            ("closePath", ()),
+        ],
+    ],
+)
+def test_malformed_quadratics_are_rejected_instead_of_degrading_to_lines(
+    segments,
+) -> None:
+    with pytest.raises(ValueError, match="qCurveTo"):
+        _expand_quadratics(segments)
+
+
+class _FakePathContour:
+    def __init__(self, segments) -> None:
+        self.segments = segments
+
+
+@pytest.mark.parametrize(
+    "segments",
+    [
+        [("moveTo", ((0.0, 0.0),)), ("lineTo", (1.0, 2.0)), ("closePath", ())],
+        [("moveTo", ((0.0, 0.0),)), ("lineTo", ((1.0, 2.0),))],
+        [
+            ("moveTo", ((0.0, 0.0),)),
+            ("closePath", ()),
+            ("lineTo", ((1.0, 2.0),)),
+        ],
+    ],
+)
+def test_malformed_pathops_contours_are_rejected(segments) -> None:
+    with pytest.raises(ValueError):
+        _contour_from_path(_FakePathContour(segments), {}, 5.0)
 
 
 @pytest.mark.skipif(not REAL_SOURCE.exists(), reason="real source font absent")

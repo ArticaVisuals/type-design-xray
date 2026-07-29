@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import RecordingPointPen
@@ -170,7 +171,10 @@ def list_layers(
         return result
 
 
-def _open_reader(path: Union[str, os.PathLike]) -> UFOReader:
+@contextmanager
+def _open_reader(
+    path: Union[str, os.PathLike]
+) -> Iterator[UFOReader]:
     source = Path(path)
     if not source.exists():
         raise FileNotFoundError(
@@ -188,7 +192,8 @@ def _open_reader(path: Union[str, os.PathLike]) -> UFOReader:
         )
 
     try:
-        return UFOReader(str(source))
+        with UFOReader(str(source)) as reader:
+            yield reader
     except (OSError, UFOLibError) as error:
         raise ValueError(
             "could not read UFO source {!s}: {}".format(source, error)

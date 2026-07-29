@@ -237,3 +237,27 @@ def test_single_glyph_convenience_uses_glyph_metrics_and_advance():
         ".//svg:g[@id='outline_01ampersand']", SVG
     )
     assert group is not None
+
+
+def test_ids_stay_unique_when_index_width_grows_past_two_digits():
+    glyphs = []
+    for index in range(100):
+        name = "x"
+        if index == 9:
+            name = "0a"
+        elif index == 99:
+            name = "a"
+        glyph = ir.Glyph(
+            name=name,
+            advance_width=10.0,
+            contours=[_simple_contour(closed=False)],
+        )
+        glyphs.append(ir.PositionedGlyph(glyph=glyph, origin_x=index * 10.0))
+    layout = ir.Layout(glyphs=glyphs, total_advance=1000.0)
+
+    root = _root(render_svg(layout, style_contract.Style()))
+    ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
+
+    assert len(ids) == len(set(ids))
+    assert "outline_0100a" in ids
+    assert "outline_100a" in ids

@@ -17,14 +17,21 @@ def _load_cairosvg() -> Any:
         return None
 
 
+def _find_command(name: str) -> Optional[str]:
+    try:
+        return shutil.which(name)
+    except Exception:
+        return None
+
+
 def available_backends() -> List[str]:
     """Report usable exporters without making CairoSVG a hard dependency."""
     backends: List[str] = []
     if _load_cairosvg() is not None:
         backends.append("cairosvg")
-    if shutil.which("resvg") is not None:
+    if _find_command("resvg") is not None:
         backends.append("resvg")
-    if shutil.which("rsvg-convert") is not None:
+    if _find_command("rsvg-convert") is not None:
         backends.append("rsvg-convert")
     return backends
 
@@ -77,8 +84,8 @@ def svg_to_png(svg: Any, out_path: Any, width: Optional[int] = None) -> Path:
     payload = _svg_bytes(svg)
     destination = Path(out_path)
     cairosvg = _load_cairosvg()
-    resvg = shutil.which("resvg")
-    rsvg_convert = shutil.which("rsvg-convert")
+    resvg = _find_command("resvg")
+    rsvg_convert = _find_command("rsvg-convert")
     if cairosvg is None and resvg is None and rsvg_convert is None:
         raise _missing_backend("PNG")
 
@@ -116,7 +123,7 @@ def svg_to_pdf(svg: Any, out_path: Any) -> Path:
     payload = _svg_bytes(svg)
     destination = Path(out_path)
     cairosvg = _load_cairosvg()
-    rsvg_convert = shutil.which("rsvg-convert")
+    rsvg_convert = _find_command("rsvg-convert")
     if cairosvg is None and rsvg_convert is None:
         raise _missing_backend("PDF")
 

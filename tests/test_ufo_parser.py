@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import plistlib
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Sequence, Tuple
@@ -373,3 +374,20 @@ def test_missing_and_non_ufo_paths_have_friendly_errors(
     path = _build_ufo(tmp_path)
     with pytest.raises(ValueError, match="glyph.*absent.*not found"):
         list_layers(path, "absent")
+
+
+def test_missing_layer_directory_reports_ufo_path(
+    tmp_path: Path,
+) -> None:
+    path = _build_ufo(tmp_path)
+    layer_contents = plistlib.loads(
+        (path / "layercontents.plist").read_bytes()
+    )
+    sketch_directory = path / layer_contents[1][1]
+    sketch_directory.rename(path / "moved-sketch-layer")
+
+    with pytest.raises(
+        ValueError,
+        match=r"Synthetic\.ufo.*glyphset does not exist",
+    ):
+        parse_ufo(path, layer="Sketch")

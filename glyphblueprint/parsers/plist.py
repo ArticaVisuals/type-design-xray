@@ -18,6 +18,8 @@ class _Parser:
 
     def parse(self) -> Dict[str, Any]:
         self._skip_trivia()
+        if not self._peek_raw():
+            self._fail("empty property list")
         if self._peek_raw() == "{":
             value = self._parse_dict()
         else:
@@ -257,8 +259,19 @@ def load(source: Union[str, os.PathLike]) -> Dict[str, Any]:
     """Parse a property list path or an already-open text stream."""
     if hasattr(source, "read"):
         return loads(source.read())
-    with open(source, "r", encoding="utf-8") as stream:
-        return loads(stream.read())
+    source_path = os.fspath(source)
+    with open(source_path, "rb") as stream:
+        raw = stream.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("mac_roman")
+    try:
+        return loads(text)
+    except PlistParseError as error:
+        raise PlistParseError(
+            "{}: {}".format(source_path, error)
+        ) from error
 
 
 parse = loads

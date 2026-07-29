@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 from dataclasses import replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -51,32 +52,47 @@ def _draw_contour(pen: Any, contour: ir.Contour) -> None:
 
 def _smooth_lookup(
     contours: Sequence[ir.Contour],
-) -> Dict[ir.Point, bool]:
-    lookup: Dict[ir.Point, bool] = {}
+) -> Dict[ir.Point, Optional[bool]]:
+    lookup: Dict[ir.Point, Optional[bool]] = {}
     for contour in contours:
         for node in contour.nodes:
             if node.point not in lookup:
                 lookup[node.point] = node.smooth
+            elif lookup[node.point] != node.smooth:
+                lookup[node.point] = None
     return lookup
 
 
 def _matched_smooth(
-    point: ir.Point, lookup: Dict[ir.Point, bool]
+    point: ir.Point, lookup: Dict[ir.Point, Optional[bool]]
 ) -> Optional[bool]:
     if point in lookup:
         return lookup[point]
 
     epsilon_squared = _MATCH_EPSILON * _MATCH_EPSILON
-    closest_distance = epsilon_squared
+    closest_distance: Optional[float] = None
     closest: Optional[bool] = None
+    ambiguous = False
     for candidate, smooth in lookup.items():
         dx = point[0] - candidate[0]
         dy = point[1] - candidate[1]
         distance = dx * dx + dy * dy
-        if distance <= closest_distance:
+        if distance > epsilon_squared:
+            continue
+        if closest_distance is None:
             closest_distance = distance
             closest = smooth
-    return closest
+            ambiguous = smooth is None
+        elif math.isclose(
+            distance, closest_distance, rel_tol=0.0, abs_tol=1e-12
+        ):
+            if smooth != closest:
+                ambiguous = True
+        elif distance < closest_distance:
+            closest_distance = distance
+            closest = smooth
+            ambiguous = smooth is None
+    return None if ambiguous else closest
 
 
 def _expand_quadratics(segments: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]:
@@ -100,12 +116,18 @@ def _expand_quadratics(segments: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]
                 current = points[-1]
             continue
 
+        if not points:
+            raise ValueError("pathops returned a qCurveTo without points")
         controls = list(points[:-1])
         end = points[-1]
-        if current is None or not controls:
-            expanded.append(("lineTo", (end,)))
-            current = end
-            continue
+        if current is None:
+            raise ValueError("pathops returned a qCurveTo before a moveTo")
+        if end is None:
+            raise ValueError(
+                "pathops returned an all-off-curve qCurveTo without an endpoint"
+            )
+        if not controls:
+            raise ValueError("pathops returned a qCurveTo without a control point")
 
         for first, second in zip(controls, controls[1:]):
             implied = ((first[0] + second[0]) / 2.0, (first[1] + second[1]) / 2.0)
@@ -120,23 +142,36 @@ def _expand_quadratics(segments: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]
 
 def _contour_from_path(
     path_contour: Any,
-    smooth_lookup: Dict[ir.Point, bool],
+    smooth_lookup: Dict[ir.Point, Optional[bool]],
     smooth_tolerance_deg: float,
 ) -> Tuple[ir.Contour, bool]:
     segments = _expand_quadratics(list(path_contour.segments))
     if not segments or segments[0][0] != "moveTo":
         raise ValueError("pathops returned a contour without a moveTo")
+    if len(segments[0][1]) != 1:
+        raise ValueError("pathops returned an invalid moveTo")
 
     start_point = segments[0][1][0]
     nodes = [ir.Node(point=start_point)]
     closed = False
     for index, (operation, points) in enumerate(segments[1:], 1):
         if operation == "closePath":
+            if index != len(segments) - 1:
+                raise ValueError(
+                    "pathops returned drawing operations after closePath"
+                )
             closed = True
             continue
         if operation not in ("lineTo", "curveTo"):
             raise ValueError(
                 "pathops returned unsupported segment {!r}".format(operation)
+            )
+        expected_points = 1 if operation == "lineTo" else 3
+        if len(points) != expected_points:
+            raise ValueError(
+                "pathops returned {} with {} points; expected {}".format(
+                    operation, len(points), expected_points
+                )
             )
 
         end_point = points[-1]
@@ -164,6 +199,9 @@ def _contour_from_path(
             nodes.append(
                 ir.Node(point=end_point, type=ir.SEGMENT_LINE)
             )
+
+    if not closed:
+        raise ValueError("pathops returned an open contour")
 
     inferred = False
     for node in nodes:

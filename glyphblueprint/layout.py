@@ -2,9 +2,33 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+import math
+from typing import Any, List, Optional, Tuple
 
 from . import ir
+
+
+def _finite_number(value: Any, label: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(
+            "{} must be a finite number, got {!r}".format(label, value)
+        ) from exc
+    if not math.isfinite(number):
+        raise ValueError(
+            "{} must be a finite number, got {!r}".format(label, value)
+        )
+    return number
+
+
+def _finite_sum(left: float, right: float, label: str) -> float:
+    result = left + right
+    if not math.isfinite(result):
+        raise ValueError(
+            "layout advance became non-finite while applying {}".format(label)
+        )
+    return result
 
 
 def resolve_glyph_name(font: ir.Font, char: str) -> Optional[str]:
@@ -35,7 +59,10 @@ def kern_value(font: ir.Font, left_name: str, right_name: str) -> float:
 
     for pair in pairs:
         if pair in font.kerning:
-            return float(font.kerning[pair])
+            return _finite_number(
+                font.kerning[pair],
+                "kerning value for pair {!r}".format(pair),
+            )
     return 0.0
 
 
@@ -48,6 +75,8 @@ def layout_string(
     missing: str = "error",
 ) -> ir.Layout:
     """Lay out a run without coupling positioning to any source parser."""
+    tracking_value = _finite_number(tracking, "tracking")
+    units_per_em = _finite_number(font.units_per_em, "units per em")
     resolved = _resolve_text(font, text, missing)
     positioned: List[ir.PositionedGlyph] = []
     pen_x = 0.0
@@ -57,9 +86,17 @@ def layout_string(
         before = 0.0
         if apply_kerning and previous_name is not None:
             before = kern_value(font, previous_name, glyph_name)
-        pen_x += before
+        pen_x = _finite_sum(
+            pen_x,
+            before,
+            "kerning before glyph {!r}".format(glyph_name),
+        )
 
         glyph = font.glyphs[glyph_name]
+        advance_width = _finite_number(
+            glyph.advance_width,
+            "advance width for glyph {!r}".format(glyph_name),
+        )
         positioned.append(
             ir.PositionedGlyph(
                 glyph=glyph,
@@ -68,14 +105,18 @@ def layout_string(
                 source_char=source_char,
             )
         )
-        pen_x += glyph.advance_width
+        pen_x = _finite_sum(
+            pen_x,
+            advance_width,
+            "advance width for glyph {!r}".format(glyph_name),
+        )
         if index < len(resolved) - 1:
-            pen_x += tracking
+            pen_x = _finite_sum(pen_x, tracking_value, "tracking")
         previous_name = glyph_name
 
     return ir.Layout(
         glyphs=positioned,
-        units_per_em=font.units_per_em,
+        units_per_em=units_per_em,
         metrics=font.metrics,
         total_advance=pen_x,
     )
@@ -95,9 +136,14 @@ def layout_per_glyph(font: ir.Font, text: str, **kwargs: object) -> List[ir.Layo
         layouts.append(
             ir.Layout(
                 glyphs=[single],
-                units_per_em=font.units_per_em,
-                metrics=font.metrics,
-                total_advance=positioned.glyph.advance_width,
+                units_per_em=run.units_per_em,
+                metrics=run.metrics,
+                total_advance=_finite_number(
+                    positioned.glyph.advance_width,
+                    "advance width for glyph {!r}".format(
+                        positioned.glyph.name
+                    ),
+                ),
             )
         )
     return layouts
@@ -155,6 +201,11 @@ def _input_tokens(text: str) -> List[Tuple[str, Optional[str]]]:
             and not text[index].isspace()
         ):
             index += 1
+        if name_start == index:
+            raise ValueError(
+                "glyph-name escape at index {} has no name; "
+                "use '//' for a literal slash".format(start)
+            )
         tokens.append((text[start:index], text[name_start:index]))
 
     return tokens

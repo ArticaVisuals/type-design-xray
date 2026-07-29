@@ -31,7 +31,7 @@ animated.
 - Optionally **merges overlapping shapes** (`--compound`) the way the font
   compiler does at export, so you can blueprint the finished outline
 - Exports **SVG** (primary), plus PNG and PDF
-- Everything visual is configurable — **77+ style properties**, every one
+- Everything visual is configurable — **85 style properties**, every one
   settable from a config file *or* the command line
 
 ## Install
@@ -292,6 +292,14 @@ for name, glyph in font.glyphs.items():
 `load_font` returns the internal representation described in
 [`docs/CONTRACT.md`](docs/CONTRACT.md) — raw font units, absolute handle
 coordinates, one curve type — if you want to do your own drawing.
+
+`blueprint_to_files` accepts `svg`, `png`, and `pdf` in any order and returns
+the paths it wrote in that same order. An existing directory (or a path ending
+in `/`) receives files named from the input text. A file path names the combined
+lockup; with `per_glyph=True`, the individual glyph files are written beside
+it. PNG and PDF calls raise an actionable error when no optional rendering
+backend is installed; the command-line tool additionally preserves an SVG
+fallback in that case.
 
 ## Known limitations
 

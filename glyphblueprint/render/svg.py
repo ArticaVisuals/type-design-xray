@@ -59,11 +59,14 @@ def _glyph_attributes(
     glyph: ir.Glyph,
     layer_name: str = "",
     resolved_style: Optional[style_contract.Style] = None,
+    index_width: int = 2,
 ) -> dict:
     # The glyph group repeats once per render layer, so the layer name has to be
     # part of the id -- duplicate ids are invalid XML and make Illustrator and
     # After Effects merge or rename layers on import.
-    parts = [p for p in (layer_name, _glyph_token(index, glyph)) if p]
+    parts = [
+        p for p in (layer_name, _glyph_token(index, glyph, index_width)) if p
+    ]
     return {
         "id": _identifier(resolved_style, *parts),
         "data-glyph": glyph.name,
@@ -71,9 +74,14 @@ def _glyph_attributes(
     }
 
 
-def _glyph_token(index: int, glyph: ir.Glyph) -> str:
+def _glyph_token(index: int, glyph: ir.Glyph, index_width: int = 2) -> str:
     """Short stable token identifying a glyph within the lockup, e.g. ``01a``."""
-    return "{:02d}{}".format(index + 1, _slug(glyph.name))
+    return "{}{}".format(str(index + 1).zfill(index_width), _slug(glyph.name))
+
+
+def _glyph_index_width(layout: ir.Layout) -> int:
+    """Keep the index boundary unambiguous when glyph names start with digits."""
+    return max(2, len(str(len(layout.glyphs))))
 
 
 def _identifier(
@@ -470,9 +478,10 @@ def _positioned_glyph_group(
     positioned: ir.PositionedGlyph,
     layer_name: str = "",
     resolved_style: Optional[style_contract.Style] = None,
+    index_width: int = 2,
 ) -> ET.Element:
     attributes = _glyph_attributes(
-        index, positioned.glyph, layer_name, resolved_style
+        index, positioned.glyph, layer_name, resolved_style, index_width
     )
     if positioned.origin_x != 0 or positioned.origin_y != 0:
         attributes["transform"] = "translate({} {})".format(
@@ -642,8 +651,11 @@ def _render_fill(
     frame: _Frame,
 ) -> None:
     geometry = _geometry_group(layer, frame)
+    index_width = _glyph_index_width(layout)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned, "fill", resolved_style)
+        glyph_group = _positioned_glyph_group(
+            geometry, index, positioned, "fill", resolved_style, index_width
+        )
         if not resolved_style.outline.fill_enabled:
             continue
         paths = [
@@ -667,7 +679,7 @@ def _render_fill(
                 element,
                 resolved_style,
                 "fill",
-                _glyph_token(index, positioned.glyph),
+                _glyph_token(index, positioned.glyph, index_width),
                 "path",
             )
 
@@ -680,12 +692,15 @@ def _render_outline(
 ) -> None:
     geometry = _geometry_group(layer, frame)
     line_style = resolved_style.outline.as_line()
+    index_width = _glyph_index_width(layout)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned, "outline", resolved_style)
+        glyph_group = _positioned_glyph_group(
+            geometry, index, positioned, "outline", resolved_style, index_width
+        )
         if not line_style.visible:
             continue
         attributes = _line_attributes(line_style, frame.scale)
-        token = _glyph_token(index, positioned.glyph)
+        token = _glyph_token(index, positioned.glyph, index_width)
         for contour_index, contour in enumerate(positioned.glyph.contours):
             path = _contour_path(contour)
             if not path:
@@ -712,12 +727,20 @@ def _render_handle_lines(
 ) -> None:
     geometry = _geometry_group(layer, frame)
     line_style = resolved_style.handles.line
+    index_width = _glyph_index_width(layout)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned, "handleline", resolved_style)
+        glyph_group = _positioned_glyph_group(
+            geometry,
+            index,
+            positioned,
+            "handleline",
+            resolved_style,
+            index_width,
+        )
         if not line_style.visible:
             continue
         base_attributes = _line_attributes(line_style, frame.scale)
-        token = _glyph_token(index, positioned.glyph)
+        token = _glyph_token(index, positioned.glyph, index_width)
         for contour_index, contour in enumerate(positioned.glyph.contours):
             container = _contour_container(
                 glyph_group,
@@ -761,9 +784,17 @@ def _render_handle_points(
 ) -> None:
     geometry = _geometry_group(layer, frame)
     marker_style = resolved_style.handles.point
+    index_width = _glyph_index_width(layout)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned, "handlepoint", resolved_style)
-        token = _glyph_token(index, positioned.glyph)
+        glyph_group = _positioned_glyph_group(
+            geometry,
+            index,
+            positioned,
+            "handlepoint",
+            resolved_style,
+            index_width,
+        )
+        token = _glyph_token(index, positioned.glyph, index_width)
         for contour_index, contour in enumerate(positioned.glyph.contours):
             container = _contour_container(
                 glyph_group,
@@ -799,9 +830,12 @@ def _render_nodes(
     frame: _Frame,
 ) -> None:
     geometry = _geometry_group(layer, frame)
+    index_width = _glyph_index_width(layout)
     for index, positioned in enumerate(layout.glyphs):
-        glyph_group = _positioned_glyph_group(geometry, index, positioned, "node", resolved_style)
-        token = _glyph_token(index, positioned.glyph)
+        glyph_group = _positioned_glyph_group(
+            geometry, index, positioned, "node", resolved_style, index_width
+        )
+        token = _glyph_token(index, positioned.glyph, index_width)
         for contour_index, contour in enumerate(positioned.glyph.contours):
             container = _contour_container(
                 glyph_group, resolved_style, "node", token, contour_index, contour

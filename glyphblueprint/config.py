@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import fields
 from pathlib import Path
@@ -18,6 +19,7 @@ from . import style
 
 
 _PRESET_DIRECTORY = Path(__file__).with_name("presets")
+_MISSING = object()
 
 
 def _toml_loads(text: str) -> Dict[str, Any]:
@@ -44,20 +46,29 @@ def load_config(path: Any) -> Dict[str, Any]:
     text = config_path.read_text(encoding="utf-8")
     suffix = config_path.suffix.lower()
 
-    if suffix == ".json":
-        data = json.loads(text)
-    elif suffix == ".toml":
-        data = _toml_loads(text)
-    elif text.lstrip().startswith("{"):
-        data = json.loads(text)
-    else:
-        data = _toml_loads(text)
+    try:
+        if suffix == ".json":
+            data = json.loads(text)
+        elif suffix == ".toml":
+            data = _toml_loads(text)
+        elif text.lstrip().startswith("{"):
+            data = json.loads(text)
+        else:
+            data = _toml_loads(text)
+    except Exception as exc:
+        raise ValueError(
+            "failed to parse configuration {!s}: {}".format(config_path, exc)
+        ) from exc
 
     if not isinstance(data, dict):
         raise ValueError(
             "configuration {!s} must contain a top-level mapping, got {}".format(
                 config_path, type(data).__name__
             )
+        )
+    if not data:
+        raise ValueError(
+            "configuration {!s} must not be empty".format(config_path)
         )
     return data
 
@@ -108,6 +119,10 @@ def parse_override(text: str) -> Tuple[str, Any]:
     value = value.strip()
     if not dotted:
         raise ValueError("style override path may not be empty")
+    if not value:
+        raise ValueError(
+            "style override {!r} must have a non-empty value".format(text)
+        )
     if value.lower() in ("none", "null"):
         return dotted, None
     return dotted, value
@@ -162,7 +177,7 @@ def _declared_type(resolved: style.Style, path: str) -> str:
 def _set_value(resolved: style.Style, path: str, value: Any) -> None:
     try:
         resolved.set_path(path, value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(
             "invalid value for {!r}: expected {}, got {!r}".format(
                 path, _declared_type(resolved, path), value
@@ -208,7 +223,7 @@ def _apply_overrides(resolved: style.Style, overrides: Any) -> None:
     if isinstance(overrides, str) or not isinstance(overrides, Sequence):
         raise ValueError("overrides must be a mapping or a list of path=value strings")
 
-    leaves, _ = _valid_paths()
+    leaves, prefixes = _valid_paths()
     for override in overrides:
         if not isinstance(override, str):
             raise ValueError(
@@ -218,8 +233,179 @@ def _apply_overrides(resolved: style.Style, overrides: Any) -> None:
             )
         path, value = parse_override(override)
         if path not in leaves:
+            if path in prefixes:
+                raise ValueError(
+                    "style override {!r} names a section; "
+                    "set one of its leaf values instead".format(path)
+                )
             raise _unknown_key(path, leaves)
         _set_value(resolved, path, value)
+
+
+def _validate_style(resolved: style.Style) -> None:
+    choices = {
+        "canvas.frame": style.FRAME_MODES,
+        "handles.point.shape": style.SHAPES,
+        "nodes.corner.shape": style.SHAPES,
+        "nodes.smooth.shape": style.SHAPES,
+        "outline.dash": style.DASH_PATTERNS,
+        "handles.line.dash": style.DASH_PATTERNS,
+        "metrics.line.dash": style.DASH_PATTERNS,
+        "metrics.sidebearing_line.dash": style.DASH_PATTERNS,
+    }
+    for path, allowed in choices.items():
+        value = resolved.get_path(path)
+        if value not in allowed:
+            raise ValueError(
+                "invalid value for {!r}: expected one of {}, got {!r}".format(
+                    path, ", ".join(allowed), value
+                )
+            )
+
+    linecaps = ("butt", "round", "square")
+    linejoins = ("miter", "round", "bevel", "miter-clip", "arcs")
+    for path in (
+        "outline.linecap",
+        "handles.line.linecap",
+        "metrics.line.linecap",
+        "metrics.sidebearing_line.linecap",
+    ):
+        value = resolved.get_path(path)
+        if value not in linecaps:
+            raise ValueError(
+                "invalid value for {!r}: expected one of {}, got {!r}".format(
+                    path, ", ".join(linecaps), value
+                )
+            )
+    for path in (
+        "outline.linejoin",
+        "handles.line.linejoin",
+        "metrics.line.linejoin",
+        "metrics.sidebearing_line.linejoin",
+    ):
+        value = resolved.get_path(path)
+        if value not in linejoins:
+            raise ValueError(
+                "invalid value for {!r}: expected one of {}, got {!r}".format(
+                    path, ", ".join(linejoins), value
+                )
+            )
+
+    label_style = resolved.metrics.label_style
+    if label_style not in ("normal", "italic", "oblique"):
+        raise ValueError(
+            "invalid value for 'metrics.label_style': expected normal, italic, "
+            "or oblique, got {!r}".format(label_style)
+        )
+    label_weight = resolved.metrics.label_weight
+    if label_weight not in ("normal", "bold"):
+        try:
+            numeric_weight = int(label_weight)
+        except (TypeError, ValueError, OverflowError):
+            numeric_weight = 0
+        if str(numeric_weight) != label_weight.strip() or not (
+            100 <= numeric_weight <= 900
+        ):
+            raise ValueError(
+                "invalid value for 'metrics.label_weight': expected normal, "
+                "bold, or a number from 100 to 900, got {!r}".format(
+                    label_weight
+                )
+            )
+
+    unknown_metrics = [
+        name for name in resolved.metrics.show if name not in style.METRIC_NAMES
+    ]
+    if unknown_metrics:
+        raise ValueError(
+            "invalid value for 'metrics.show': unknown metric {!r}; "
+            "expected only {}".format(
+                unknown_metrics[0], ", ".join(style.METRIC_NAMES)
+            )
+        )
+
+    def finite(path: str, value: Any) -> bool:
+        try:
+            return math.isfinite(float(value))
+        except OverflowError as exc:
+            raise ValueError(
+                "invalid value for {!r}: {}".format(path, exc)
+            ) from exc
+        except (TypeError, ValueError):
+            return False
+
+    positive = ("canvas.width", "canvas.png_width")
+    for path in positive:
+        value = resolved.get_path(path)
+        if value is None:
+            continue
+        if not finite(path, value) or value <= 0:
+            raise ValueError(
+                "invalid value for {!r}: must be greater than zero, got {!r}".format(
+                    path, value
+                )
+            )
+
+    nonnegative = (
+        "canvas.padding",
+        "outline.width",
+        "handles.point.size",
+        "handles.point.stroke_width",
+        "handles.line.width",
+        "nodes.corner.size",
+        "nodes.corner.stroke_width",
+        "nodes.smooth.size",
+        "nodes.smooth.stroke_width",
+        "metrics.line.width",
+        "metrics.sidebearing_line.width",
+        "metrics.label_size",
+        "metrics.extend",
+    )
+    for path in nonnegative:
+        value = resolved.get_path(path)
+        if not finite(path, value) or value < 0:
+            raise ValueError(
+                "invalid value for {!r}: must not be negative, got {!r}".format(
+                    path, value
+                )
+            )
+
+    finite_only = ("metrics.label_letter_spacing",)
+    for path in finite_only:
+        value = resolved.get_path(path)
+        if not finite(path, value):
+            raise ValueError(
+                "invalid value for {!r}: must be finite, got {!r}".format(
+                    path, value
+                )
+            )
+
+    opacity_paths = (
+        "outline.opacity",
+        "outline.fill_opacity",
+        "handles.point.opacity",
+        "handles.line.opacity",
+        "nodes.corner.opacity",
+        "nodes.smooth.opacity",
+        "metrics.line.opacity",
+        "metrics.sidebearing_line.opacity",
+        "metrics.label_opacity",
+    )
+    for path in opacity_paths:
+        value = resolved.get_path(path)
+        if not finite(path, value) or not 0.0 <= value <= 1.0:
+            raise ValueError(
+                "invalid value for {!r}: expected a number from 0 to 1, "
+                "got {!r}".format(path, value)
+            )
+
+    if resolved.canvas.width - 2.0 * resolved.canvas.padding <= 0:
+        raise ValueError(
+            "invalid value for 'canvas.padding': padding {!r} with width {!r} "
+            "leaves no room for glyph geometry".format(
+                resolved.canvas.padding, resolved.canvas.width
+            )
+        )
 
 
 def resolve_style(
@@ -232,8 +418,8 @@ def resolve_style(
     config_preset: Optional[str] = None
     if config_path is not None:
         config_body = dict(load_config(config_path))
-        raw_preset = config_body.pop("preset", None)
-        if raw_preset is not None:
+        raw_preset = config_body.pop("preset", _MISSING)
+        if raw_preset is not _MISSING:
             if not isinstance(raw_preset, str) or not raw_preset.strip():
                 raise ValueError(
                     "config key 'preset' must be a non-empty preset name"
@@ -245,7 +431,14 @@ def resolve_style(
     canonical_preset: Optional[str] = None
 
     if selected_preset is not None:
-        canonical_preset = _preset_name(selected_preset)
+        try:
+            canonical_preset = _preset_name(selected_preset)
+        except ValueError as exc:
+            if preset is None and config_preset is not None:
+                raise ValueError(
+                    "configuration {!s}: {}".format(config_path, exc)
+                ) from exc
+            raise
         _apply_mapping(resolved, load_preset(canonical_preset))
     if config_body:
         _apply_mapping(resolved, config_body)
@@ -256,6 +449,7 @@ def resolve_style(
         resolved.preset_name = canonical_preset
     elif config_path is not None:
         resolved.preset_name = "custom"
+    _validate_style(resolved)
     return resolved
 
 

@@ -9,6 +9,7 @@ from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 
 from glyphblueprint import ir
+from glyphblueprint.parsers import binary
 from glyphblueprint.parsers.binary import parse_binary
 
 
@@ -230,3 +231,26 @@ def test_binary_layer_selection_is_friendly(tmp_path: Path) -> None:
     _make_synthetic_ttf(path)
     with pytest.raises(ValueError, match=r"\.glyphs.*\.ufo"):
         parse_binary(path, layer="foreground")
+
+
+def test_missing_hmtx_entry_uses_safe_metrics_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "missing-hmtx.ttf"
+    _make_synthetic_ttf(path)
+    ttfont = binary.TTFont
+
+    def open_with_missing_metric(
+        source: object, lazy: bool = True
+    ) -> object:
+        font = ttfont(source, lazy=lazy)
+        del font["hmtx"].metrics["o"]
+        return font
+
+    monkeypatch.setattr(binary, "TTFont", open_with_missing_metric)
+    glyph = parse_binary(path, glyph_names=["o"]).glyphs["o"]
+
+    assert glyph.advance_width == 0.0
+    assert glyph.metrics.lsb == 0.0
+    assert glyph.contours

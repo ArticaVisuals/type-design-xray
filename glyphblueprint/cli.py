@@ -369,6 +369,26 @@ def _explicit_overrides(args: argparse.Namespace) -> List[str]:
     return overrides
 
 
+def _formats_with_svg_fallback(formats: Sequence[str]) -> Tuple[str, ...]:
+    """Preserve an SVG when a requested optional exporter is unavailable."""
+    if "svg" in formats or not {"png", "pdf"}.intersection(formats):
+        return tuple(formats)
+
+    from .render import raster
+
+    backends = set(raster.available_backends())
+    png_available = bool(
+        backends.intersection({"cairosvg", "resvg", "rsvg-convert"})
+    )
+    pdf_available = bool(backends.intersection({"cairosvg", "rsvg-convert"}))
+    missing = ("png" in formats and not png_available) or (
+        "pdf" in formats and not pdf_available
+    )
+    if missing:
+        return ("svg",) + tuple(formats)
+    return tuple(formats)
+
+
 def _error_message(exc: BaseException) -> str:
     if isinstance(exc, FileNotFoundError):
         filename = getattr(exc, "filename", None)
@@ -484,7 +504,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "text is required unless --list-layers is used"
             )
 
-        formats = _normalise_formats(args.format)
+        formats = _formats_with_svg_fallback(_normalise_formats(args.format))
         overrides = _explicit_overrides(args)
         out = args.out
         if out is None:
@@ -511,7 +531,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         _print_written(paths, args.quiet)
         return 0
-    except (FileNotFoundError, OSError, ValueError, KeyError, RuntimeError) as exc:
+    except (
+        FileNotFoundError,
+        OSError,
+        ValueError,
+        KeyError,
+        RuntimeError,
+        OverflowError,
+    ) as exc:
         written_paths = getattr(exc, "written_paths", ())
         _print_written(written_paths, args.quiet)
         print("glyphblueprint: error: {}".format(_error_message(exc)), file=sys.stderr)

@@ -182,6 +182,29 @@ def test_missing_font_is_friendly(
     assert "Traceback" not in captured.err
 
 
+def test_huge_width_is_an_expected_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    destination = tmp_path / "huge.svg"
+    result = main(
+        [
+            str(EXAMPLE),
+            "A",
+            "--width",
+            "9" * 500,
+            "--out",
+            str(destination),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert result == 2
+    assert "int too large to convert to float" in captured.err
+    assert "unexpected failure" not in captured.err
+    assert "Traceback" not in captured.err
+    assert not destination.exists()
+
+
 def test_missing_raster_backend_keeps_svg(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -206,6 +229,39 @@ def test_missing_raster_backend_keeps_svg(
     assert result == 2
     assert destination.exists()
     assert not destination.with_suffix(".png").exists()
+    assert 'pip install "glyphblueprint[raster]"' in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_png_only_request_keeps_svg_when_raster_backend_is_missing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from glyphblueprint.render import raster
+
+    monkeypatch.setattr(raster, "_load_cairosvg", lambda: None)
+    monkeypatch.setattr(raster.shutil, "which", lambda command: None)
+    destination = tmp_path / "output.png"
+
+    result = main(
+        [
+            str(EXAMPLE),
+            "A",
+            "--format",
+            "png",
+            "--out",
+            str(destination),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    fallback = destination.with_suffix(".svg")
+    assert result == 2
+    assert fallback.exists()
+    assert ET.parse(fallback).getroot().tag.endswith("svg")
+    assert not destination.exists()
+    assert "wrote {}".format(fallback) in captured.out
     assert 'pip install "glyphblueprint[raster]"' in captured.err
     assert "Traceback" not in captured.err
 
