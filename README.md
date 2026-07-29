@@ -202,13 +202,13 @@ It gives you, live:
   or `.woff` file. The path box beside it still works for typing or pasting a
   path, and is the way to load a `.ufo`, which is a folder rather than a single
   file and so cannot be picked this way.
-- **Colour pickers** for all twelve colours — background (with a transparent
-  toggle), outline stroke and fill, handle lines, handle point fill and stroke,
-  corner and smooth node fill and stroke, metric guides, and metric label text.
-  Choosing a preset seeds every swatch with that preset's real values, so a
-  preset is a starting point rather than a straitjacket. "Reset to preset" puts
-  them back. Leave the swatches alone and the output is byte-identical to the
-  plain preset.
+- **Colour pickers** for all twelve colours — background, outline stroke and
+  fill, handle lines, handle point fill and stroke, corner and smooth node fill
+  and stroke, metric guides, and metric label text. Every colour has an
+  editable hex field and a Transparent toggle. Choosing a preset seeds every
+  colour with that preset's real values, so a preset is a starting point rather
+  than a straitjacket. "Reset to preset" puts them back. Leave the colours alone
+  and the output is byte-identical to the plain preset.
 - **Sizes and stroke weights as sliders** — handle point size and stroke,
   corner and smooth node size and stroke, outline stroke width, handle line
   width, and metric guide width. Drag to find a value by eye and the preview
@@ -223,8 +223,12 @@ It gives you, live:
   the guide *lines* and the numeric *labels*, plus one per guide (baseline,
   x-height, cap height, ascender, descender, side bearings) so you can render
   exactly the pieces you want.
+- **Reusable style presets** — name the current settings and export them as a
+  JSON preset. Load that file in the preview next time, or pass it to the CLI
+  with `--config`.
 - Preset, marker shape, frame mode, width, tracking, named layer, remove
-  overlap and kerning, with a Download SVG button.
+  overlap and kerning. The preview updates after every change; use the primary
+  **Export SVG** button at the bottom when it is ready.
 
 Use `--port` if 8765 is taken.
 
