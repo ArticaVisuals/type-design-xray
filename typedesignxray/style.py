@@ -1,4 +1,4 @@
-"""Resolved style model. The second half of the frozen contract.
+"""The resolved style model.
 
 ``Style`` is what the renderer consumes. The config layer's only job is to
 produce one of these by deep-merging (defaults <- preset <- config file <-

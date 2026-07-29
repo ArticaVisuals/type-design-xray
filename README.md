@@ -390,7 +390,7 @@ for name, glyph in font.glyphs.items():
 ```
 
 `load_font` returns the internal representation described in
-[`docs/CONTRACT.md`](docs/CONTRACT.md) — raw font units, absolute handle
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — raw font units, absolute handle
 coordinates, one curve type — if you want to do your own drawing.
 
 `blueprint_to_files` accepts `svg`, `png`, and `pdf` in any order and returns
@@ -470,7 +470,7 @@ python3 -m venv .venv
 ```
 
 Architecture and the rules each layer relies on are in
-[`docs/CONTRACT.md`](docs/CONTRACT.md); contribution notes are in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); contribution notes are in
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License

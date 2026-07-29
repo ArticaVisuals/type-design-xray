@@ -23,9 +23,9 @@ presets, config files and CLI overrides into one `Style`
 layout plus style and returns SVG. Exporters turn SVG into PNG or PDF. The CLI
 wires it together.
 
-The two contract modules — `ir.py` and `style.py` — are what keep those layers
-independent. Changing them affects everything, so changes there need a good
-reason and should come with a note in [`docs/CONTRACT.md`](docs/CONTRACT.md).
+`ir.py` and `style.py` are what keep those layers independent. Changing them
+affects everything, so changes there need a good reason and a matching update to
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Rules that matter
 

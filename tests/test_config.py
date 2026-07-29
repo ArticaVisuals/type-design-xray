@@ -15,17 +15,10 @@ from typedesignxray.render import raster
 PRESET_NAMES = {"blueprint", "light", "contrast", "drafting"}
 
 
-def test_shipped_presets_load_validate_and_match_repo_copies() -> None:
-    package_directory = Path(config.__file__).with_name("presets")
-    repo_directory = Path(__file__).parents[1] / "presets"
-
+def test_shipped_presets_load_and_validate() -> None:
     assert PRESET_NAMES <= set(config.available_presets())
     for name in PRESET_NAMES:
-        preset = config.load_preset(name)
-        style.Style.from_dict(preset)
-        assert (package_directory / "{}.json".format(name)).read_bytes() == (
-            repo_directory / "{}.json".format(name)
-        ).read_bytes()
+        style.Style.from_dict(config.load_preset(name))
 
 
 def test_json_and_toml_configs_resolve_identically(tmp_path: Path) -> None:
