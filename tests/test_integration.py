@@ -245,6 +245,52 @@ def test_metric_labels_do_not_collide_with_sidebearing_labels(demo):
     assert min(sidebearing) > max(horizontal)
 
 
+def test_none_means_the_shape_on_required_fields_and_unset_on_optional_ones(demo):
+    """Regression: '=none' was blanket-converted to Python None.
+
+    That broke ``--set nodes.corner.shape=none``, a documented shape meaning
+    "draw nothing", because ``shape`` is a required string. Only the declared
+    field type can disambiguate the two meanings.
+    """
+    style = resolve_style(
+        overrides=[
+            "handles.point.shape=none",
+            "nodes.corner.shape=none",
+            "canvas.background=none",
+            "handles.point.fill=none",
+        ]
+    )
+    assert style.handles.point.shape == "none"
+    assert style.nodes.corner.shape == "none"
+    assert style.canvas.background is None
+    assert style.handles.point.fill is None
+
+    # ...and each meaning has the right visual effect
+    root = ET.fromstring(
+        blueprint(str(DEMO), "ao", overrides=["handles.point.shape=none"])
+    )
+    drawn = [
+        el
+        for g in root.iter()
+        if g.get("data-layer") == "handle_points"
+        for el in g.iter()
+        if el.tag.split("}")[-1] in ("circle", "rect", "polygon", "path")
+    ]
+    assert drawn == []
+
+    root = ET.fromstring(
+        blueprint(str(DEMO), "a", overrides=["canvas.background=none"])
+    )
+    rects = [
+        el
+        for g in root.iter()
+        if g.get("data-layer") == "background"
+        for el in g.iter()
+        if el.tag.endswith("rect")
+    ]
+    assert rects == []
+
+
 def test_public_api_matches_renderer_output(demo):
     style = resolve_style(preset="light")
     direct = render_svg(layout_string(demo, "Tao"), style)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from glyphblueprint.web import create_server, render_request
+from glyphblueprint.web import create_server, main, render_request
 
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "BlueprintDemo.glyphs"
@@ -116,3 +116,69 @@ def test_http_server_returns_json_error() -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_marker_shape_defaults_to_the_preset_so_corner_and_smooth_differ():
+    """Regression: the preview forced one shape onto every marker.
+
+    That collapsed the corner-vs-smooth distinction the presets exist to
+    show, so the preview stopped representing what the tool actually exports.
+    """
+    demo = Path(__file__).resolve().parent.parent / "examples" / "BlueprintDemo.glyphs"
+    result = render_request(
+        {"font_path": str(demo), "text": "ao", "preset": "blueprint"}
+    )
+    root = ET.fromstring(result["svg"])
+    kinds = {}
+    for group in root.iter():
+        if group.get("data-layer") != "nodes":
+            continue
+        for element in group.iter():
+            kind = element.get("data-node-type")
+            if kind:
+                kinds.setdefault(kind, set()).add(element.tag.split("}")[-1])
+    assert kinds.get("corner") == {"rect"}
+    assert kinds.get("smooth") == {"circle"}
+
+    # an explicit shape still overrides everything
+    forced = render_request(
+        {
+            "font_path": str(demo),
+            "text": "ao",
+            "preset": "blueprint",
+            "shape": "diamond",
+        }
+    )
+    root = ET.fromstring(forced["svg"])
+    shapes = {
+        element.tag.split("}")[-1]
+        for group in root.iter()
+        if group.get("data-layer") == "nodes"
+        for element in group.iter()
+        if element.get("data-node-type")
+    }
+    assert shapes == {"polygon"}
+
+
+def test_preview_reports_a_busy_port_without_a_traceback(capsys):
+    """Re-running the preview while one is open is the likeliest failure."""
+    from glyphblueprint.web import create_server, main
+
+    server = create_server("127.0.0.1", 0)
+    port = server.server_address[1]
+    try:
+        code = main(["--port", str(port)])
+    finally:
+        server.server_close()
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "already in use" in err
+    assert "--port" in err
+    assert "Traceback" not in err
+
+
+def test_preview_rejects_an_out_of_range_port_cleanly(capsys):
+    assert main(["--port", "99999"]) == 2
+    err = capsys.readouterr().err
+    assert "between 0 and 65535" in err
+    assert "Traceback" not in err

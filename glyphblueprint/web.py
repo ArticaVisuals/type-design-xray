@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import math
 import os
+import sys
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -236,6 +238,7 @@ _PAGE = r"""<!doctype html>
           <div>
             <label for="shape">Marker shape</label>
             <select id="shape" name="shape">
+              <option value="" selected>Preset default</option>
               <option>circle</option>
               <option>square</option>
               <option>diamond</option>
@@ -435,8 +438,12 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
                 preset, ", ".join(available_presets())
             )
         )
-    shape = _string(payload, "shape", "circle")
-    if shape not in SHAPES:
+    # An empty shape means "leave the preset alone". Forcing one shape onto
+    # corner nodes, smooth nodes and handle points collapses the corner/smooth
+    # distinction, so the preview would stop showing what the tool actually
+    # exports. Only override when the user explicitly picks a shape.
+    shape = _string(payload, "shape")
+    if shape and shape not in SHAPES:
         raise ValueError(
             "unknown marker shape {!r}; choose from {}".format(
                 shape, ", ".join(SHAPES)
@@ -459,16 +466,17 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     overrides = {
         "canvas": {"frame": frame, "width": width},
-        "handles": {"point": {"shape": shape}},
-        "nodes": {
-            "corner": {"shape": shape},
-            "smooth": {"shape": shape},
-        },
         "metrics": {
             "visible": metrics,
             "show": list(METRIC_NAMES),
         },
     }
+    if shape:
+        overrides["handles"] = {"point": {"shape": shape}}
+        overrides["nodes"] = {
+            "corner": {"shape": shape},
+            "smooth": {"shape": shape},
+        }
     svg = blueprint(
         path,
         text,
@@ -585,8 +593,39 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parser().parse_args(argv)
     if not 0 <= args.port <= 65535:
-        raise ValueError("port must be between 0 and 65535")
-    server = create_server(args.host, args.port)
+        print(
+            "glyphblueprint-preview: error: port must be between 0 and 65535",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        server = create_server(args.host, args.port)
+    except OSError as exc:
+        # Re-running the preview while one is already open is the single most
+        # likely failure here, and a socket traceback is a poor way to say so.
+        if exc.errno == errno.EADDRINUSE:
+            print(
+                "glyphblueprint-preview: error: port {} is already in use. "
+                "A preview may already be running at http://{}:{}/ — open "
+                "that, or start this one on another port with --port {}.".format(
+                    args.port, args.host, args.port, args.port + 1
+                ),
+                file=sys.stderr,
+            )
+        elif exc.errno in (errno.EACCES, errno.EPERM):
+            print(
+                "glyphblueprint-preview: error: not allowed to listen on port "
+                "{}. Ports below 1024 need elevated privileges; try "
+                "--port 8765.".format(args.port),
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "glyphblueprint-preview: error: could not start on {}:{}: "
+                "{}".format(args.host, args.port, exc),
+                file=sys.stderr,
+            )
+        return 2
     host, port = server.server_address[:2]
     print("glyphblueprint preview: http://{}:{}/".format(host, port), flush=True)
     try:

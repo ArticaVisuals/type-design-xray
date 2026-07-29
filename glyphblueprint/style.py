@@ -342,6 +342,18 @@ def _coerce(target: Any, name: str, value: Any) -> Any:
     declared = {f.name: f.type for f in fields(target)}[name]
     text = declared if isinstance(declared, str) else getattr(declared, "__name__", "")
 
+    # "none" is overloaded: on an Optional field it means "unset" (a
+    # transparent background), but on a required field it is a real value --
+    # "none" is a legitimate marker shape meaning "draw nothing". Only the
+    # declared type can tell these apart, which is why the decision lives here
+    # rather than in the CLI/config layer that parses the text.
+    if (
+        isinstance(value, str)
+        and value.strip().lower() in ("none", "null")
+        and "Optional" in text
+    ):
+        return None
+
     if value is None:
         if "Optional" in text:
             return None

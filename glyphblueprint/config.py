@@ -123,8 +123,6 @@ def parse_override(text: str) -> Tuple[str, Any]:
         raise ValueError(
             "style override {!r} must have a non-empty value".format(text)
         )
-    if value.lower() in ("none", "null"):
-        return dotted, None
     return dotted, value
 
 
@@ -197,12 +195,10 @@ def _apply_mapping(
             raise KeyError("style keys must be strings, got {!r}".format(raw_key))
         path = "{}.{}".format(prefix, raw_key) if prefix else raw_key
         if path in leaves:
-            if (
-                null_strings
-                and isinstance(value, str)
-                and value.strip().lower() in ("none", "null")
-            ):
-                value = None
+            # "none"/"null" is resolved by style._coerce, which is the only
+            # layer that knows whether the target field is Optional ("unset")
+            # or a required string whose value is literally "none" -- as it is
+            # for marker shapes.
             _set_value(resolved, path, value)
         elif path in prefixes:
             if not isinstance(value, Mapping):
