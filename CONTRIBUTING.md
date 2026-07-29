@@ -9,11 +9,19 @@ You need Python 3.9 or newer. Clone the repository, then run the commands for
 your shell. Run each line separately and wait for it to succeed before running
 the next one; do not paste several commands joined on one line.
 
-These first two commands are the same in a POSIX shell and PowerShell:
+Clone the repository and enter it:
 
 ```text
 git clone https://github.com/ArticaVisuals/type-design-xray
 cd type-design-xray
+```
+
+In PowerShell, the equivalent semicolon-terminated commands are safe to paste
+as one block:
+
+```powershell
+git clone https://github.com/ArticaVisuals/type-design-xray;
+Set-Location .\type-design-xray;
 ```
 
 ### macOS or Linux (POSIX shell)
@@ -29,11 +37,11 @@ python3 -m venv .venv
 ### Windows (PowerShell)
 
 ```powershell
-py -3 --version
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[dev,compound]"
-.\.venv\Scripts\python.exe -m pytest -q
+py -3 --version;
+py -3 -m venv .venv;
+.\.venv\Scripts\python.exe -m pip install --upgrade pip;
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,compound]";
+.\.venv\Scripts\python.exe -m pytest -q;
 ```
 
 If PowerShell says that `py` is not recognized, install Python 3.9 or newer

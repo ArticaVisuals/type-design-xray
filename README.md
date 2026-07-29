@@ -39,11 +39,24 @@ animated.
 You need **Python 3.9 or newer**. Every command below comes in two versions —
 use the one for your system.
 
+> **PowerShell:** the semicolons at the end of the Windows commands are
+> intentional separators. You may paste a whole Windows code block at once,
+> but do not join commands after removing the semicolons.
+
 **Step 1 — download the project.**
+
+macOS / Linux:
 
 ```bash
 git clone https://github.com/ArticaVisuals/type-design-xray
 cd type-design-xray
+```
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/ArticaVisuals/type-design-xray;
+Set-Location .\type-design-xray;
 ```
 
 No `git`? Download the ZIP from the green **Code** button on GitHub, unzip it,
@@ -62,7 +75,7 @@ python3 -m venv .venv
 Windows (PowerShell):
 
 ```powershell
-py -3 -m venv .venv
+py -3 -m venv .venv;
 ```
 
 If `py` is unavailable but `python --version` reports Python 3.9 or newer, use
@@ -80,8 +93,8 @@ macOS / Linux:
 Windows (PowerShell):
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install ".[compound]"
+.\.venv\Scripts\python.exe -m pip install --upgrade pip;
+.\.venv\Scripts\python.exe -m pip install ".[compound]";
 ```
 
 The `[compound]` part adds overlap removal (the `--compound` option). Leave it
@@ -99,15 +112,25 @@ macOS / Linux:
 Windows (PowerShell):
 
 ```powershell
-.\.venv\Scripts\type-design-xray.exe examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg
+.\.venv\Scripts\type-design-xray.exe examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg;
 ```
 
 Open `blueprint.svg` in a browser, Illustrator, or Figma.
 
-> **Copy one block at a time.** Pasting several commands as a single line will
-> run them joined together and fail.
-
 ### If something goes wrong
+
+**`Set-Location: A positional parameter cannot be found that accepts argument
+'-3'`** — two PowerShell commands were joined without a separator. If the line
+at the prompt looks like `cd type-design-xraypy -3 -m venv .venv`, cancel it
+and run these two commands separately:
+
+```powershell
+Set-Location .\type-design-xray;
+py -3 -m venv .venv;
+```
+
+If your prompt already ends in `type-design-xray>`, you are already in the
+right folder and should run only the second command.
 
 **`Python was not found; run without arguments to install from the Microsoft
 Store`** — you are on Windows and typed `python3`. Windows ships a stub for that
