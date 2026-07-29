@@ -129,6 +129,7 @@ def list_layers(
     data = plist.load(path)
     masters = _dict_items(data.get("fontMaster"))
     master_ids = {_text(item.get("id")) for item in masters}
+    master_ids.discard("")
     record = next(
         (
             item
@@ -149,7 +150,9 @@ def list_layers(
             ir.LayerInfo(
                 layer_id=layer_id,
                 name=name,
-                is_master=not name and layer_id in master_ids,
+                # Glyphs may persist the master's display name on its layer.
+                # The layer ID, not an empty name, is the authoritative link.
+                is_master=layer_id in master_ids,
                 associated_master_id=_text(
                     layer_record.get("associatedMasterId")
                 ),
@@ -237,17 +240,12 @@ def _select_layer(
             return insensitive[0]
 
     master_id_set = set(master_ids)
+    if master_id:
+        for item in layers:
+            if _text(item.get("layerId")) == master_id:
+                return item
     for item in layers:
-        if (
-            item.get("name") in (None, "")
-            and _text(item.get("layerId")) == master_id
-        ):
-            return item
-    for item in layers:
-        if (
-            item.get("name") in (None, "")
-            and _text(item.get("layerId")) in master_id_set
-        ):
+        if _text(item.get("layerId")) in master_id_set:
             return item
     for item in layers:
         if item.get("name") in (None, ""):
