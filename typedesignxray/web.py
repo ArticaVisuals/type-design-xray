@@ -228,20 +228,28 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     .shell {
       display: grid;
       grid-template-columns: minmax(19rem, 25rem) minmax(0, 1fr);
-      min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
     }
     aside {
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
       padding: 1.5rem;
       border-right: 1px solid #1f3552;
       background: rgba(8, 20, 36, .92);
-      overflow: auto;
+      overflow-y: auto;
     }
     main {
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
       min-width: 0;
+      min-height: 0;
+      height: 100%;
       padding: 1.5rem;
       gap: 1rem;
+      overflow: auto;
     }
     h1 {
       margin: 0;
@@ -580,11 +588,15 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     .primary:hover { filter: brightness(1.08); }
     .primary:disabled { cursor: wait; opacity: .6; }
     .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 1;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
       min-height: 2.5rem;
+      background: #07111f;
     }
     #status {
       color: #9db1cb;
@@ -608,8 +620,10 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     .stage {
       display: grid;
       place-items: center;
-      min-height: 28rem;
-      overflow: auto;
+      place-items: safe center;
+      min-width: 0;
+      min-height: 0;
+      overflow: visible;
       border: 1px solid #1f3552;
       border-radius: .9rem;
       background:
@@ -645,9 +659,24 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     @media (max-width: 850px) {
-      .shell { grid-template-columns: 1fr; }
-      aside { border-right: 0; border-bottom: 1px solid #1f3552; }
-      main { min-height: 70vh; }
+      .shell {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+      }
+      aside {
+        height: auto;
+        overflow-y: visible;
+        border-right: 0;
+        border-bottom: 1px solid #1f3552;
+      }
+      main {
+        height: auto;
+        min-height: 70vh;
+        overflow: visible;
+      }
+      .toolbar { position: static; }
+      .stage { min-height: 28rem; overflow: visible; }
     }
   </style>
 </head>
@@ -1008,6 +1037,12 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     const touchedColors = new Set();
     const touchedSizes = new Set();
     const touchedLabels = new Set();
+    const discreteControls = Array.from(
+      form.querySelectorAll('select, input[type="checkbox"]')
+    );
+    const textNumberInputs = Array.from(
+      form.querySelectorAll('input[type="text"], input[type="number"]')
+    ).filter((input) => input !== form.font_path);
     let latestSvg = "";
     let liveRenderTimer = null;
     let renderRequestCounter = 0;
@@ -1191,8 +1226,6 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     }
 
     function showError(error) {
-      latestSvg = "";
-      preview.innerHTML = `<p class="empty">The preview could not be generated. Check the font path and settings.</p>`;
       status.className = "error";
       status.textContent = error.message;
     }
@@ -1203,12 +1236,18 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       liveRenderTimer = null;
     }
 
-    function scheduleLiveRender() {
+    function renderLiveNow() {
+      cancelLiveRender();
+      if (!form.font_path.value.trim()) return;
+      renderBlueprint(null, {live: true});
+    }
+
+    function scheduleLiveRender(delay = 250) {
       cancelLiveRender();
       liveRenderTimer = window.setTimeout(() => {
         liveRenderTimer = null;
-        renderBlueprint(null, {live: true});
-      }, 200);
+        renderLiveNow();
+      }, delay);
     }
 
     async function renderBlueprint(event, options = {}) {
@@ -1300,6 +1339,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     colorInputs.forEach((input) => {
       input.addEventListener("input", () => {
         touchedColors.add(input.dataset.colorPath);
+        scheduleLiveRender();
       });
     });
     sizeInputs.forEach((input) => {
@@ -1345,10 +1385,29 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       outlineFillInput.disabled = !fillOutline.checked;
     });
     form.preset.addEventListener("change", seedControlsFromPreset);
-    resetColours.addEventListener("click", seedControlsFromPreset);
-    resetLabels.addEventListener("click", seedLabelsFromPreset);
+    resetColours.addEventListener("click", () => {
+      seedControlsFromPreset();
+      renderLiveNow();
+    });
+    resetLabels.addEventListener("click", () => {
+      seedLabelsFromPreset();
+      renderLiveNow();
+    });
     form.metrics.addEventListener("change", updateMetricControls);
     form.metric_numbers.addEventListener("change", updateMetricControls);
+    discreteControls.forEach((control) => {
+      control.addEventListener("change", renderLiveNow);
+    });
+    textNumberInputs.forEach((input) => {
+      input.addEventListener("input", () => {
+        scheduleLiveRender();
+      });
+    });
+    form.font_path.addEventListener("input", () => {
+      cancelLiveRender();
+      if (!form.font_path.value.trim()) return;
+      scheduleLiveRender(600);
+    });
     form.addEventListener("submit", renderBlueprint);
     fontFile.addEventListener("change", uploadFont);
     downloadButton.addEventListener("click", () => {

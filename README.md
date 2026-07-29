@@ -196,6 +196,13 @@ type-design-xray MyFont.glyphs "/ampersand/period/a.alt" --out named.svg
 
 ## Presets
 
+**Every preset exports on a transparent background by default**, so a blueprint
+composites straight into whatever you place it over. Set one when you want it:
+`--background '#0b1f3a'`, or the swatch in the preview.
+
+One caveat: `contrast` is designed for a dark backdrop — its cyan outline reads
+at about 1.5:1 against white, so give it a dark `--background` when you use it.
+
 Four ship in the box. Use `--preset <name>`, or start from one in your own
 config and override just what you want.
 
@@ -267,7 +274,7 @@ type-design-xray MyFont.glyphs "afz" --metrics all \
   --label-font "Helvetica Neue, sans-serif" --label-weight 600 --label-size 13
 ```
 
-**Canvas** — `background` (use `none` for transparent), `width`, `padding`, and
+**Canvas** — `background`, `width`, `padding`, and
 `frame`: `auto` fits the drawing, `metrics` locks to descender–ascender, and
 `em` locks to a box exactly one em tall sitting on the descender. The locked
 modes give every render an identical scale, which is what you want when

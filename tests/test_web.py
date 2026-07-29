@@ -770,6 +770,66 @@ def test_untouched_colours_are_byte_identical_to_plain_preset() -> None:
     assert rendered == plain
 
 
+def _css_rule(page, selector, start=0):
+    match = re.search(
+        re.escape(selector) + r"\s*\{([^{}]*)\}",
+        page[start:],
+    )
+    assert match is not None
+    return match.group(1)
+
+
+def test_preview_page_uses_independently_scrolling_desktop_panes() -> None:
+    page = _preview_page()
+    shell = _css_rule(page, ".shell")
+    aside = _css_rule(page, "aside")
+    main = _css_rule(page, "main")
+    stage = _css_rule(page, ".stage")
+
+    assert "height: 100vh;" in shell
+    assert "height: 100dvh;" in shell
+    assert shell.index("height: 100vh;") < shell.index("height: 100dvh;")
+    assert "overflow: hidden;" in shell
+
+    assert "min-width: 0;" in aside
+    assert "min-height: 0;" in aside
+    assert "height: 100%;" in aside
+    assert "overflow-y: auto;" in aside
+
+    assert "grid-template-rows: auto minmax(0, 1fr);" in main
+    assert "min-width: 0;" in main
+    assert "min-height: 0;" in main
+    assert "height: 100%;" in main
+    assert "overflow: auto;" in main
+
+    assert "place-items: center;" in stage
+    assert "min-width: 0;" in stage
+    assert "min-height: 0;" in stage
+    assert "overflow: visible;" in stage
+
+    toolbar = _css_rule(page, ".toolbar")
+    assert "position: sticky;" in toolbar
+    assert "top: 0;" in toolbar
+
+
+def test_preview_page_restores_document_scrolling_when_stacked() -> None:
+    page = _preview_page()
+    media_start = page.index("@media (max-width: 850px)")
+    shell = _css_rule(page, ".shell", media_start)
+    aside = _css_rule(page, "aside", media_start)
+    main = _css_rule(page, "main", media_start)
+    stage = _css_rule(page, ".stage", media_start)
+
+    assert "grid-template-columns: 1fr;" in shell
+    assert "height: auto;" in shell
+    assert "overflow: visible;" in shell
+    assert "height: auto;" in aside
+    assert "overflow-y: visible;" in aside
+    assert "height: auto;" in main
+    assert "overflow: visible;" in main
+    assert "overflow: visible;" in stage
+
+
 def test_preview_page_has_seeded_controls_for_every_colour_path() -> None:
     page = _preview_page()
     match = re.search(r"const PRESET_COLORS = (\{.*\});", page)
@@ -846,10 +906,8 @@ def test_preview_page_seeds_and_tracks_every_size_control() -> None:
         in page
     )
     assert "touchedSizes.clear();" in page
-    assert (
-        'resetColours.addEventListener("click", seedControlsFromPreset);'
-        in page
-    )
+    assert 'resetColours.addEventListener("click", () => {' in page
+    assert "seedControlsFromPreset();" in page
 
 
 def test_preview_page_has_nine_documented_size_sliders() -> None:
@@ -944,7 +1002,46 @@ def test_preview_page_seeds_and_tracks_metric_label_controls() -> None:
     )
 
 
-def test_preview_page_debounces_slider_renders_and_drops_stale_responses() -> None:
+def test_preview_page_live_renders_all_control_groups_once() -> None:
+    page = _preview_page()
+
+    assert page.count("const discreteControls = Array.from(") == 1
+    assert (
+        "form.querySelectorAll('select, input[type=\"checkbox\"]')"
+        in page
+    )
+    assert page.count("discreteControls.forEach((control) => {") == 1
+    assert (
+        'control.addEventListener("change", renderLiveNow);'
+        in page
+    )
+
+    assert page.count("const textNumberInputs = Array.from(") == 1
+    assert (
+        "form.querySelectorAll('input[type=\"text\"], "
+        "input[type=\"number\"]')"
+        in page
+    )
+    assert ").filter((input) => input !== form.font_path);" in page
+    assert page.count("textNumberInputs.forEach((input) => {") == 1
+
+    color_listener = re.search(
+        r"colorInputs\.forEach\(\(input\) => \{\s*"
+        r'input\.addEventListener\("input", \(\) => \{\s*'
+        r"touchedColors\.add\(input\.dataset\.colorPath\);\s*"
+        r"scheduleLiveRender\(\);",
+        page,
+    )
+    assert color_listener is not None
+
+    assert page.count(
+        'form.font_path.addEventListener("input", () => {'
+    ) == 1
+    assert "if (!form.font_path.value.trim()) return;" in page
+    assert "scheduleLiveRender(600);" in page
+
+
+def test_preview_page_debounces_live_renders_and_drops_stale_responses() -> None:
     page = _preview_page()
 
     assert "let renderRequestCounter = 0;" in page
@@ -953,12 +1050,21 @@ def test_preview_page_debounces_slider_renders_and_drops_stale_responses() -> No
         "if (requestId !== renderRequestCounter) return;"
     ) == 2
     assert "renderBlueprint(null, {live: true});" in page
-    assert "}, 200);" in page
+    assert "function scheduleLiveRender(delay = 250)" in page
+    assert "}, delay);" in page
     assert (
         "if (!live) {\n"
         "        renderButton.disabled = true;"
     ) in page
     assert 'form.addEventListener("submit", renderBlueprint);' in page
+
+    show_error = re.search(
+        r"function showError\(error\) \{([^{}]*)\}",
+        page,
+    )
+    assert show_error is not None
+    assert "latestSvg" not in show_error.group(1)
+    assert "preview.innerHTML" not in show_error.group(1)
 
 
 def test_preview_page_has_ordered_disabling_metric_controls() -> None:

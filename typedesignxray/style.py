@@ -203,7 +203,10 @@ class MetricsStyle:
 class CanvasStyle:
     """Background, framing and output sizing."""
 
-    background: Optional[str] = "#0b1f3a"
+    #: None means transparent -- no background rect is emitted at all, so the
+    #: blueprint composites straight into whatever it is placed over. Presets
+    #: may set a colour; the bare default does not.
+    background: Optional[str] = None
     #: "auto" fits drawn geometry, "em" locks to the em square, "metrics" locks
     #: to descender..ascender by the full advance.
     frame: str = "auto"
