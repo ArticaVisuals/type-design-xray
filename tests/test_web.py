@@ -169,7 +169,7 @@ _COLOR_CASES = (
 _SIZE_CASES = (
     (
         "handles.point.size",
-        12.3,
+        11.25,
         "handle_points",
         "circle",
         "r",
@@ -178,7 +178,7 @@ _SIZE_CASES = (
     ),
     (
         "handles.point.stroke_width",
-        6.3,
+        5.5,
         "handle_points",
         "circle",
         "stroke-width",
@@ -187,7 +187,7 @@ _SIZE_CASES = (
     ),
     (
         "nodes.corner.size",
-        12.3,
+        11.25,
         "nodes",
         "rect",
         "width",
@@ -196,7 +196,7 @@ _SIZE_CASES = (
     ),
     (
         "nodes.smooth.size",
-        12.3,
+        11.25,
         "nodes",
         "circle",
         "r",
@@ -205,7 +205,7 @@ _SIZE_CASES = (
     ),
     (
         "nodes.corner.stroke_width",
-        6.3,
+        5.5,
         "nodes",
         "rect",
         "stroke-width",
@@ -214,7 +214,7 @@ _SIZE_CASES = (
     ),
     (
         "nodes.smooth.stroke_width",
-        6.3,
+        5.5,
         "nodes",
         "circle",
         "stroke-width",
@@ -223,7 +223,7 @@ _SIZE_CASES = (
     ),
     (
         "outline.width",
-        6.3,
+        7.5,
         "outline",
         "path",
         "stroke-width",
@@ -232,7 +232,7 @@ _SIZE_CASES = (
     ),
     (
         "handles.line.width",
-        6.3,
+        5.5,
         "handle_lines",
         "line",
         "stroke-width",
@@ -241,7 +241,7 @@ _SIZE_CASES = (
     ),
     (
         "metrics.line.width",
-        6.3,
+        5.5,
         "metrics",
         "line",
         "stroke-width",
@@ -249,6 +249,18 @@ _SIZE_CASES = (
         "baseline",
     ),
 )
+
+_SLIDER_RANGES = {
+    "handles.point.size": ("0", "12", "0.25"),
+    "nodes.corner.size": ("0", "12", "0.25"),
+    "nodes.smooth.size": ("0", "12", "0.25"),
+    "handles.point.stroke_width": ("0", "6", "0.1"),
+    "nodes.corner.stroke_width": ("0", "6", "0.1"),
+    "nodes.smooth.stroke_width": ("0", "6", "0.1"),
+    "outline.width": ("0", "8", "0.1"),
+    "handles.line.width": ("0", "6", "0.1"),
+    "metrics.line.width": ("0", "6", "0.1"),
+}
 
 
 def _elements_in_layer(root: ET.Element, layer_name: str):
@@ -424,7 +436,7 @@ def _rendered_style_value(
     ),
     _SIZE_CASES,
 )
-def test_each_size_override_changes_its_rendered_svg_geometry(
+def test_each_slider_path_reaches_rendered_svg(
     path,
     value,
     layer_name,
@@ -433,6 +445,8 @@ def test_each_size_override_changes_its_rendered_svg_geometry(
     node_type,
     metric_name,
 ) -> None:
+    minimum, maximum, _ = _SLIDER_RANGES[path]
+    assert float(minimum) <= value <= float(maximum)
     baseline = ET.fromstring(
         render_request(_payload(shape="", sizes={}))["svg"]
     )
@@ -459,6 +473,42 @@ def test_each_size_override_changes_its_rendered_svg_geometry(
     assert changed_value > baseline_value
 
 
+def test_typed_value_above_slider_maximum_is_honoured_by_server() -> None:
+    path = "outline.width"
+    typed_value = 9.2
+    assert typed_value > float(_SLIDER_RANGES[path][1])
+
+    baseline = ET.fromstring(
+        render_request(_payload(shape="", sizes={}))["svg"]
+    )
+    changed = ET.fromstring(
+        render_request(
+            _payload(shape="", sizes={path: typed_value})
+        )["svg"]
+    )
+
+    baseline_value = _rendered_style_value(
+        baseline,
+        "outline",
+        "path",
+        "stroke-width",
+        None,
+        None,
+    )
+    changed_value = _rendered_style_value(
+        changed,
+        "outline",
+        "path",
+        "stroke-width",
+        None,
+        None,
+    )
+    preset_value = resolve_style(preset="blueprint").get_path(path)
+    assert changed_value / baseline_value == pytest.approx(
+        typed_value / preset_value
+    )
+
+
 def test_render_request_rejects_unknown_size_key() -> None:
     key = "metrics.sidebearing_line.width"
     with pytest.raises(ValueError) as caught:
@@ -474,6 +524,24 @@ def test_render_request_rejects_negative_size_value() -> None:
 
     assert path in str(caught.value)
     assert "between 0 and 20" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "maximum"),
+    [
+        ("handles.point.size", 20.01, 20),
+        ("outline.width", 10.01, 10),
+    ],
+)
+def test_render_request_rejects_size_above_hard_limit_with_clear_message(
+    path, value, maximum
+) -> None:
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(sizes={path: value}))
+
+    assert str(caught.value) == "{} must be between 0 and {}".format(
+        path, maximum
+    )
 
 
 @pytest.mark.parametrize(
@@ -634,11 +702,74 @@ def test_preview_page_seeds_and_tracks_every_size_control() -> None:
     assert "const touchedSizes = new Set();" in page
     assert "if (!touchedSizes.has(path)) return;" in page
     assert "sizes[path] = Number(input.value);" in page
+    assert "syncSizeFromNumber(input);" in page
+    assert "syncSizeFromSlider(slider);" in page
+    assert (
+        "Math.min(Number(slider.max), Math.max(Number(slider.min), value))"
+        in page
+    )
     assert "touchedSizes.clear();" in page
     assert (
         'resetColours.addEventListener("click", seedControlsFromPreset);'
         in page
     )
+
+
+def test_preview_page_has_nine_documented_size_sliders() -> None:
+    page = _preview_page()
+    tags = re.findall(
+        r'<input\b(?=[^>]*\btype="range")[^>]*>',
+        page,
+    )
+    sliders = {}
+    for tag in tags:
+        attributes = dict(
+            re.findall(r'([\w-]+)="([^"]*)"', tag)
+        )
+        sliders[attributes["data-size-slider"]] = attributes
+
+    assert len(tags) == 9
+    assert set(sliders) == set(_SLIDER_RANGES)
+    for path, (minimum, maximum, step) in _SLIDER_RANGES.items():
+        assert sliders[path]["min"] == minimum
+        assert sliders[path]["max"] == maximum
+        assert sliders[path]["step"] == step
+
+    number_tags = re.findall(
+        r'<input\b(?=[^>]*\btype="number")'
+        r'(?=[^>]*\bdata-size-path=")[^>]*>',
+        page,
+    )
+    numbers = {}
+    for tag in number_tags:
+        attributes = dict(
+            re.findall(r'([\w-]+)="([^"]*)"', tag)
+        )
+        numbers[attributes["data-size-path"]] = attributes
+    assert len(number_tags) == 9
+    assert set(numbers) == set(_SLIDER_RANGES)
+    for path, attributes in numbers.items():
+        assert attributes["min"] == "0"
+        assert attributes["max"] == (
+            "20" if path.endswith(".size") else "10"
+        )
+
+
+def test_preview_page_debounces_slider_renders_and_drops_stale_responses() -> None:
+    page = _preview_page()
+
+    assert "let renderRequestCounter = 0;" in page
+    assert "const requestId = ++renderRequestCounter;" in page
+    assert page.count(
+        "if (requestId !== renderRequestCounter) return;"
+    ) == 2
+    assert "renderBlueprint(null, {live: true});" in page
+    assert "}, 200);" in page
+    assert (
+        "if (!live) {\n"
+        "        renderButton.disabled = true;"
+    ) in page
+    assert 'form.addEventListener("submit", renderBlueprint);' in page
 
 
 def test_preview_page_has_ordered_disabling_metric_controls() -> None:

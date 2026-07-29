@@ -270,9 +270,15 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     .size-control {
       min-width: 0;
     }
-    .size-label {
+    .size-label-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: .45rem;
       min-height: 1.85rem;
-      margin: 0 0 .25rem;
+    }
+    .size-label {
+      margin: 0;
       color: #dbe8fa;
       font-size: .72rem;
       font-weight: 600;
@@ -280,9 +286,83 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       line-height: 1.25;
       text-transform: none;
     }
+    .size-value {
+      flex: 0 0 auto;
+      min-width: 2.5rem;
+      color: #9db1cb;
+      font-size: .72rem;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.25;
+      text-align: right;
+    }
+    .size-control input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      width: 100%;
+      height: 1.15rem;
+      margin: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      outline: none;
+    }
+    .size-control input[type="range"]::-webkit-slider-runnable-track {
+      height: .42rem;
+      border: 1px solid #2a4568;
+      border-radius: 999px;
+      background: #0d2139;
+    }
+    .size-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 1rem;
+      height: 1rem;
+      margin-top: -.29rem;
+      border: 2px solid #dbeaff;
+      border-radius: 50%;
+      background: #5aa9ff;
+      box-shadow: 0 .12rem .4rem rgba(0, 0, 0, .35);
+    }
+    .size-control input[type="range"]::-moz-range-track {
+      height: .32rem;
+      border: 1px solid #2a4568;
+      border-radius: 999px;
+      background: #0d2139;
+    }
+    .size-control input[type="range"]::-moz-range-progress {
+      height: .32rem;
+      border: 1px solid #3d8bfd;
+      border-radius: 999px;
+      background: #2d527d;
+    }
+    .size-control input[type="range"]::-moz-range-thumb {
+      width: .78rem;
+      height: .78rem;
+      border: 2px solid #dbeaff;
+      border-radius: 50%;
+      background: #5aa9ff;
+      box-shadow: 0 .12rem .4rem rgba(0, 0, 0, .35);
+    }
+    .size-control input[type="range"]:focus {
+      box-shadow: none;
+    }
+    .size-control input[type="range"]:focus-visible {
+      border-radius: 999px;
+      outline: 3px solid rgba(90, 169, 255, .16);
+      outline-offset: 2px;
+    }
+    .size-number-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: .15rem;
+    }
     .size-control input[type="number"] {
-      min-height: 2.35rem;
-      padding: .45rem .6rem;
+      width: 4.5rem;
+      min-height: 1.8rem;
+      padding: .25rem .4rem;
+      font-size: .76rem;
+      font-variant-numeric: tabular-nums;
     }
     input[type="color"] {
       width: 1.8rem;
@@ -563,40 +643,94 @@ _PAGE_TEMPLATE = r"""<!doctype html>
           </div>
           <div class="size-grid">
             <div class="size-control">
-              <label class="size-label" for="handlePointSize">Handle point size</label>
-              <input id="handlePointSize" type="number" step="0.1" min="0" max="20" data-size-path="handles.point.size">
+              <div class="size-label-row">
+                <label class="size-label" for="handlePointSizeSlider">Handle point size</label>
+                <output class="size-value" data-size-value for="handlePointSizeSlider handlePointSize"></output>
+              </div>
+              <input id="handlePointSizeSlider" type="range" min="0" max="12" step="0.25" data-size-slider="handles.point.size">
+              <div class="size-number-row">
+                <input id="handlePointSize" type="number" step="0.1" min="0" max="20" data-size-path="handles.point.size" aria-label="Exact handle point size">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="handlePointStroke">Handle point stroke</label>
-              <input id="handlePointStroke" type="number" step="0.1" min="0" max="10" data-size-path="handles.point.stroke_width">
+              <div class="size-label-row">
+                <label class="size-label" for="handlePointStrokeSlider">Handle point stroke</label>
+                <output class="size-value" data-size-value for="handlePointStrokeSlider handlePointStroke"></output>
+              </div>
+              <input id="handlePointStrokeSlider" type="range" min="0" max="6" step="0.1" data-size-slider="handles.point.stroke_width">
+              <div class="size-number-row">
+                <input id="handlePointStroke" type="number" step="0.1" min="0" max="10" data-size-path="handles.point.stroke_width" aria-label="Exact handle point stroke">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="cornerNodeSize">Corner node size</label>
-              <input id="cornerNodeSize" type="number" step="0.1" min="0" max="20" data-size-path="nodes.corner.size">
+              <div class="size-label-row">
+                <label class="size-label" for="cornerNodeSizeSlider">Corner node size</label>
+                <output class="size-value" data-size-value for="cornerNodeSizeSlider cornerNodeSize"></output>
+              </div>
+              <input id="cornerNodeSizeSlider" type="range" min="0" max="12" step="0.25" data-size-slider="nodes.corner.size">
+              <div class="size-number-row">
+                <input id="cornerNodeSize" type="number" step="0.1" min="0" max="20" data-size-path="nodes.corner.size" aria-label="Exact corner node size">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="smoothNodeSize">Smooth node size</label>
-              <input id="smoothNodeSize" type="number" step="0.1" min="0" max="20" data-size-path="nodes.smooth.size">
+              <div class="size-label-row">
+                <label class="size-label" for="smoothNodeSizeSlider">Smooth node size</label>
+                <output class="size-value" data-size-value for="smoothNodeSizeSlider smoothNodeSize"></output>
+              </div>
+              <input id="smoothNodeSizeSlider" type="range" min="0" max="12" step="0.25" data-size-slider="nodes.smooth.size">
+              <div class="size-number-row">
+                <input id="smoothNodeSize" type="number" step="0.1" min="0" max="20" data-size-path="nodes.smooth.size" aria-label="Exact smooth node size">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="cornerNodeStroke">Corner node stroke</label>
-              <input id="cornerNodeStroke" type="number" step="0.1" min="0" max="10" data-size-path="nodes.corner.stroke_width">
+              <div class="size-label-row">
+                <label class="size-label" for="cornerNodeStrokeSlider">Corner node stroke</label>
+                <output class="size-value" data-size-value for="cornerNodeStrokeSlider cornerNodeStroke"></output>
+              </div>
+              <input id="cornerNodeStrokeSlider" type="range" min="0" max="6" step="0.1" data-size-slider="nodes.corner.stroke_width">
+              <div class="size-number-row">
+                <input id="cornerNodeStroke" type="number" step="0.1" min="0" max="10" data-size-path="nodes.corner.stroke_width" aria-label="Exact corner node stroke">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="smoothNodeStroke">Smooth node stroke</label>
-              <input id="smoothNodeStroke" type="number" step="0.1" min="0" max="10" data-size-path="nodes.smooth.stroke_width">
+              <div class="size-label-row">
+                <label class="size-label" for="smoothNodeStrokeSlider">Smooth node stroke</label>
+                <output class="size-value" data-size-value for="smoothNodeStrokeSlider smoothNodeStroke"></output>
+              </div>
+              <input id="smoothNodeStrokeSlider" type="range" min="0" max="6" step="0.1" data-size-slider="nodes.smooth.stroke_width">
+              <div class="size-number-row">
+                <input id="smoothNodeStroke" type="number" step="0.1" min="0" max="10" data-size-path="nodes.smooth.stroke_width" aria-label="Exact smooth node stroke">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="outlineWidth">Outline stroke width</label>
-              <input id="outlineWidth" type="number" step="0.1" min="0" max="10" data-size-path="outline.width">
+              <div class="size-label-row">
+                <label class="size-label" for="outlineWidthSlider">Outline stroke width</label>
+                <output class="size-value" data-size-value for="outlineWidthSlider outlineWidth"></output>
+              </div>
+              <input id="outlineWidthSlider" type="range" min="0" max="8" step="0.1" data-size-slider="outline.width">
+              <div class="size-number-row">
+                <input id="outlineWidth" type="number" step="0.1" min="0" max="10" data-size-path="outline.width" aria-label="Exact outline stroke width">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="handleLineWidth">Handle line width</label>
-              <input id="handleLineWidth" type="number" step="0.1" min="0" max="10" data-size-path="handles.line.width">
+              <div class="size-label-row">
+                <label class="size-label" for="handleLineWidthSlider">Handle line width</label>
+                <output class="size-value" data-size-value for="handleLineWidthSlider handleLineWidth"></output>
+              </div>
+              <input id="handleLineWidthSlider" type="range" min="0" max="6" step="0.1" data-size-slider="handles.line.width">
+              <div class="size-number-row">
+                <input id="handleLineWidth" type="number" step="0.1" min="0" max="10" data-size-path="handles.line.width" aria-label="Exact handle line width">
+              </div>
             </div>
             <div class="size-control">
-              <label class="size-label" for="metricGuideWidth">Metric guide width</label>
-              <input id="metricGuideWidth" type="number" step="0.1" min="0" max="10" data-size-path="metrics.line.width">
+              <div class="size-label-row">
+                <label class="size-label" for="metricGuideWidthSlider">Metric guide width</label>
+                <output class="size-value" data-size-value for="metricGuideWidthSlider metricGuideWidth"></output>
+              </div>
+              <input id="metricGuideWidthSlider" type="range" min="0" max="6" step="0.1" data-size-slider="metrics.line.width">
+              <div class="size-number-row">
+                <input id="metricGuideWidth" type="number" step="0.1" min="0" max="10" data-size-path="metrics.line.width" aria-label="Exact metric guide width">
+              </div>
             </div>
           </div>
         </section>
@@ -632,6 +766,13 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     const metricNameInputs = Array.from(form.querySelectorAll('input[name="metric_names"]'));
     const backgroundInput = form.querySelector('[data-color-path="canvas.background"]');
     const outlineFillInput = form.querySelector('[data-color-path="outline.fill"]');
+    const sizeSliders = Array.from(form.querySelectorAll("[data-size-slider]"));
+    const sizeInputsByPath = new Map(
+      sizeInputs.map((input) => [input.dataset.sizePath, input])
+    );
+    const sizeSlidersByPath = new Map(
+      sizeSliders.map((slider) => [slider.dataset.sizeSlider, slider])
+    );
     const optionalFillStrokes = {
       "handles.point.fill": "handles.point.stroke",
       "nodes.corner.fill": "nodes.corner.stroke",
@@ -640,6 +781,29 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     const touchedColors = new Set();
     const touchedSizes = new Set();
     let latestSvg = "";
+    let liveRenderTimer = null;
+    let renderRequestCounter = 0;
+    let latestButtonRenderRequest = 0;
+
+    function syncSizeFromNumber(input) {
+      const slider = sizeSlidersByPath.get(input.dataset.sizePath);
+      const value = Number(input.value);
+      if (input.value !== "" && Number.isFinite(value)) {
+        slider.value = String(
+          Math.min(Number(slider.max), Math.max(Number(slider.min), value))
+        );
+      }
+      const output = input
+        .closest(".size-control")
+        .querySelector("[data-size-value]");
+      output.value = input.value || "—";
+    }
+
+    function syncSizeFromSlider(slider) {
+      const input = sizeInputsByPath.get(slider.dataset.sizeSlider);
+      input.value = slider.value;
+      syncSizeFromNumber(input);
+    }
 
     function seedColorsFromPreset() {
       const presetColors = PRESET_COLORS[form.preset.value];
@@ -665,6 +829,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       if (!presetSizes) return;
       sizeInputs.forEach((input) => {
         input.value = presetSizes[input.dataset.sizePath];
+        syncSizeFromNumber(input);
       });
       touchedSizes.clear();
     }
@@ -728,10 +893,32 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       status.textContent = error.message;
     }
 
-    async function renderBlueprint(event) {
-      if (event) event.preventDefault();
-      renderButton.disabled = true;
-      downloadButton.disabled = true;
+    function cancelLiveRender() {
+      if (liveRenderTimer === null) return;
+      window.clearTimeout(liveRenderTimer);
+      liveRenderTimer = null;
+    }
+
+    function scheduleLiveRender() {
+      cancelLiveRender();
+      liveRenderTimer = window.setTimeout(() => {
+        liveRenderTimer = null;
+        renderBlueprint(null, {live: true});
+      }, 200);
+    }
+
+    async function renderBlueprint(event, options = {}) {
+      if (event) {
+        event.preventDefault();
+        cancelLiveRender();
+      }
+      const live = options.live === true;
+      const requestId = ++renderRequestCounter;
+      if (!live) {
+        renderButton.disabled = true;
+        downloadButton.disabled = true;
+        latestButtonRenderRequest = requestId;
+      }
       status.className = "";
       status.textContent = "Rendering…";
       try {
@@ -741,6 +928,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
           body: JSON.stringify(payload())
         });
         const result = await response.json();
+        if (requestId !== renderRequestCounter) return;
         if (!response.ok) throw new Error(result.error || "Render failed");
         latestSvg = result.svg;
         preview.innerHTML = result.svg;
@@ -748,9 +936,12 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         status.textContent = `${details.glyphs} glyphs · ${details.nodes} nodes · ${details.width} × ${details.height}`;
         downloadButton.disabled = false;
       } catch (error) {
+        if (requestId !== renderRequestCounter) return;
         showError(error);
       } finally {
-        renderButton.disabled = false;
+        if (!live && requestId === latestButtonRenderRequest) {
+          renderButton.disabled = false;
+        }
       }
     }
 
@@ -791,6 +982,14 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     sizeInputs.forEach((input) => {
       input.addEventListener("input", () => {
         touchedSizes.add(input.dataset.sizePath);
+        syncSizeFromNumber(input);
+      });
+    });
+    sizeSliders.forEach((slider) => {
+      slider.addEventListener("input", () => {
+        syncSizeFromSlider(slider);
+        touchedSizes.add(slider.dataset.sizeSlider);
+        scheduleLiveRender();
       });
     });
     transparentBackground.addEventListener("change", () => {

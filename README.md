@@ -124,9 +124,11 @@ It gives you, live:
   preset is a starting point rather than a straitjacket. "Reset to preset" puts
   them back. Leave the swatches alone and the output is byte-identical to the
   plain preset.
-- **Sizes and stroke weights** — handle point size and stroke, corner and
-  smooth node size and stroke, outline stroke width, handle line width, and
-  metric guide width.
+- **Sizes and stroke weights as sliders** — handle point size and stroke,
+  corner and smooth node size and stroke, outline stroke width, handle line
+  width, and metric guide width. Drag to find a value by eye and the preview
+  re-renders live; each slider has a number box beside it for exact entry,
+  which accepts values beyond the slider's range.
 - **Granular metric toggles** — a master switch, then independent checkboxes for
   the guide *lines* and the numeric *labels*, plus one per guide (baseline,
   x-height, cap height, ascender, descender, side bearings) so you can render
