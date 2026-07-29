@@ -465,7 +465,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         <button class="download" id="downloadButton" type="button" disabled>Download SVG</button>
       </div>
       <section class="stage" aria-label="SVG preview">
-        <div id="preview"><p class="empty">Choose a font and render. Try <code>../CaliperSans04/CaliperSans_04.glyphs</code> with overlap removal enabled.</p></div>
+        <div id="preview"><p class="empty">Choose a font and render. The bundled <code>examples/BlueprintDemo.glyphs</code> is a good starting point &mdash; try it with overlap removal enabled.</p></div>
       </section>
     </main>
   </div>

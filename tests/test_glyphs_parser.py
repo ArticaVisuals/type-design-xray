@@ -9,10 +9,7 @@ from glyphblueprint.parsers.glyphs import list_layers, parse_glyphs
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
-REAL_GLYPHS = Path(
-    "/Users/micahhoang/My Drive/Font Design/CaliperSans04/"
-    "CaliperSans_04.glyphs"
-)
+DEMO = Path(__file__).resolve().parent.parent / "examples" / "BlueprintDemo.glyphs"
 
 
 def test_plist_reader_handles_openstep_syntax_and_inline_tuples() -> None:
@@ -265,17 +262,20 @@ def test_kern_group_direction_and_full_keys() -> None:
     )
 
 
-def test_metrics_index_alignment_against_real_file() -> None:
-    if not REAL_GLYPHS.exists():
-        pytest.skip("real CaliperSans Glyphs source is not available")
+def test_metrics_index_alignment() -> None:
+    """The font-level `metrics` array aligns by index with `metricValues`.
 
-    font = parse_glyphs(REAL_GLYPHS)
+    The first entry carries no `type` and means ascender, which is the easy
+    part to get wrong. The demo font reproduces that exact structure.
+    """
+    font = parse_glyphs(DEMO)
 
-    assert font.metrics.ascender == 850
-    assert font.metrics.cap_height == 740
-    assert font.metrics.x_height == 510
-    assert font.metrics.descender == -230
-    assert font.cmap[90] == "Z"
+    assert font.metrics.ascender == 750
+    assert font.metrics.cap_height == 700
+    assert font.metrics.x_height == 460
+    assert font.metrics.descender == -200
+    assert font.metrics.baseline == 0
+    assert font.cmap[65] == "A"   # decimal unicode, not hex
 
 
 def test_sparse_metric_values_leave_missing_metrics_undefined(
@@ -372,11 +372,8 @@ def test_deep_component_chain_is_not_silently_truncated(
     assert contour.nodes[0].point == (40.0, 0.0)
 
 
-def test_list_layers_finds_real_skeleton_layer() -> None:
-    if not REAL_GLYPHS.exists():
-        pytest.skip("real CaliperSans Glyphs source is not available")
-
-    layers = list_layers(REAL_GLYPHS, "a")
+def test_list_layers_finds_named_open_path_layer() -> None:
+    layers = list_layers(DEMO, "a")
     skeleton = next(layer for layer in layers if layer.name == "Skeleton v1")
 
     assert skeleton.associated_master_id == "m01"

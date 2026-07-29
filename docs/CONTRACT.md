@@ -92,11 +92,13 @@ attributes. Rules the renderer must keep:
 * The venv is at `.venv/` — run `.venv/bin/python` and `.venv/bin/python -m pytest`.
 * `fonttools` is installed. `cairosvg` is **not** installed and must stay an
   optional import.
-* Test fixtures: real sources live outside the repo at
-  `/Users/micahhoang/My Drive/Font Design/CaliperSans04/CaliperSans_04.glyphs`
-  and `.../CaliperSans04/CaliperSans-Regular.otf`. Tests that need a real file
-  must `pytest.skip` when it is absent, and small synthetic fixtures should be
-  written under `tests/fixtures/` for anything that can be synthesised.
+* Test inputs: everything that can be synthesised lives in `tests/fixtures/`
+  or `examples/BlueprintDemo.glyphs`, and the suite is fully green with no
+  setup. A few tests additionally run against a real production source when
+  one is configured via `GLYPHBLUEPRINT_TEST_GLYPHS` /
+  `GLYPHBLUEPRINT_TEST_OTF` (see `tests/_real_fonts.py`); those must
+  `pytest.skip` when unset and must assert only format-independent
+  invariants, never values specific to one typeface.
 
 ## Style of the code
 

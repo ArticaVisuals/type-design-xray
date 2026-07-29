@@ -22,11 +22,7 @@ pytestmark = pytest.mark.skipif(
     not is_available(), reason="skia-pathops is not installed"
 )
 
-REAL_SOURCE = Path(
-    "/Users/micahhoang/My Drive/Font Design/CaliperSans04/"
-    "CaliperSans_04.glyphs"
-)
-REAL_OTF = REAL_SOURCE.with_name("CaliperSans-Regular.otf")
+from _real_fonts import REAL_GLYPHS as REAL_SOURCE, REAL_OTF  # noqa: E402
 
 
 def _contour(
@@ -223,7 +219,7 @@ def test_compound_font_preserves_layout_and_font_metadata() -> None:
 
 def test_real_source_f_matches_exported_otf() -> None:
     if not REAL_SOURCE.is_file() or not REAL_OTF.is_file():
-        pytest.skip("real CaliperSans source and OTF are not available")
+        pytest.skip("no real font configured")
 
     source_font = parse_glyphs(REAL_SOURCE)
     source_f = source_font.glyph_for_char("f")
@@ -234,8 +230,9 @@ def test_real_source_f_matches_exported_otf() -> None:
 
     result = compound_glyph(source_f)
 
-    assert len(source_f.contours) == 2
-    assert len(result.contours) == 1
+    # The exported OTF has already had overlap removed by the compiler, so it
+    # is independent ground truth: compounding the source must agree with it.
+    assert len(source_f.contours) >= len(exported_f.contours)
     assert len(result.contours) == len(exported_f.contours)
 
 
@@ -330,7 +327,7 @@ def test_malformed_pathops_contours_are_rejected(segments) -> None:
         _contour_from_path(_FakePathContour(segments), {}, 5.0)
 
 
-@pytest.mark.skipif(not REAL_SOURCE.exists(), reason="real source font absent")
+@pytest.mark.skipif(not REAL_SOURCE.exists(), reason="no real font configured")
 def test_every_glyph_in_the_real_font_compounds_without_error():
     font = parse_glyphs(str(REAL_SOURCE))
     failures = []

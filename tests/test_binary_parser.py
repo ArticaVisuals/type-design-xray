@@ -13,16 +13,13 @@ from glyphblueprint.parsers import binary
 from glyphblueprint.parsers.binary import parse_binary
 
 
-REAL_FONT = Path(
-    "/Users/micahhoang/My Drive/Font Design/CaliperSans04/"
-    "CaliperSans-Regular.otf"
-)
+from _real_fonts import REAL_OTF as REAL_FONT  # noqa: E402
 
 
 @pytest.fixture(scope="module")
 def real_font() -> ir.Font:
     if not REAL_FONT.is_file():
-        pytest.skip("CaliperSans-Regular.otf is not available")
+        pytest.skip("set GLYPHBLUEPRINT_TEST_OTF to run this")
     return parse_binary(REAL_FONT)
 
 

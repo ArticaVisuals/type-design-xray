@@ -34,39 +34,82 @@ animated.
 - Everything visual is configurable — **85 style properties**, every one
   settable from a config file *or* the command line
 
-## Install
+## Download and set up
 
-You need **Python 3.9 or newer**. Check with `python3 --version`.
+You need **Python 3.9 or newer**. On macOS and most Linux systems it is already
+there — check by opening a terminal and running:
 
 ```bash
-pip install git+https://github.com/ArticaVisuals/glyphblueprint
+python3 --version
 ```
 
-Or from a local clone:
+If that prints a version number you are ready. (On Windows, install Python from
+[python.org](https://www.python.org/downloads/) and tick "Add Python to PATH",
+then use `python` instead of `python3` in the commands below.)
+
+**Step 1 — download the project.**
 
 ```bash
 git clone https://github.com/ArticaVisuals/glyphblueprint
 cd glyphblueprint
-pip install .
 ```
 
-Smoke test — this should write an SVG and print a one-line summary:
+No `git`? Download the ZIP from the green **Code** button on GitHub, unzip it,
+and `cd` into the folder instead.
+
+**Step 2 — create an isolated environment and install.**
+
+This keeps glyphblueprint and its dependencies out of your system Python, so
+nothing else on your machine is affected.
 
 ```bash
-glyphblueprint examples/BlueprintDemo.glyphs "Vao" --out blueprint.svg
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install ".[compound]"
 ```
+
+On Windows the paths use backslashes: `.venv\Scripts\python -m pip install ".[compound]"`.
+
+The `[compound]` part adds overlap removal (the `--compound` option). Leave it
+off if you don't need it — plain `pip install .` works fine.
+
+**Step 3 — check it works.** This should write an SVG and print a one-line
+summary:
+
+```bash
+.venv/bin/glyphblueprint examples/BlueprintDemo.glyphs "Vao" --out blueprint.svg
+```
+
+Open `blueprint.svg` in a browser, Illustrator, or Figma.
+
+### Activating it in later sessions
+
+The `.venv/bin/` prefix above always works and needs no activation. If you'd
+rather type just `glyphblueprint`, activate the environment first:
+
+```bash
+cd glyphblueprint
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+glyphblueprint --version
+```
+
+Run `deactivate` to leave. You'll need to activate again in each new terminal —
+which is why the `.venv/bin/` form is often simpler.
 
 ### Local browser preview
 
-To test the exporter interactively without installing a separate application:
+The fastest way to try it. Start the preview:
 
 ```bash
-glyphblueprint-preview
+.venv/bin/glyphblueprint-preview
 ```
 
-Then open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). The preview runs
-only on your computer and uses the same Python parsing, layout, compounding, and
-SVG rendering code as the command-line tool.
+Then open **[http://127.0.0.1:8765/](http://127.0.0.1:8765/)** in your browser
+and put the full path to a font file in the **Font path** box. It runs entirely
+on your own computer — nothing is uploaded anywhere — and uses the same Python
+parsing, layout, compounding and SVG rendering code as the command-line tool,
+so what you see is what the exporter produces. Press Ctrl-C in the terminal to
+stop it.
 
 It gives you, live:
 
