@@ -4,8 +4,8 @@ import math
 
 import pytest
 
-from glyphblueprint import ir
-from glyphblueprint.layout import (
+from typedesignxray import ir
+from typedesignxray.layout import (
     kern_value,
     layout_per_glyph,
     layout_string,

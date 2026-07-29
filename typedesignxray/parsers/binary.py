@@ -14,7 +14,7 @@ from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen
 from fontTools.ttLib import TTFont
 
-from glyphblueprint import ir
+from typedesignxray import ir
 
 
 def _point(value: Sequence[float]) -> ir.Point:

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from glyphblueprint.parsers import plist
-from glyphblueprint.parsers.glyphs import list_layers, parse_glyphs
+from typedesignxray.parsers import plist
+from typedesignxray.parsers.glyphs import list_layers, parse_glyphs
 
 
 FIXTURES = Path(__file__).parent / "fixtures"

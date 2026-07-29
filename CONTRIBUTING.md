@@ -6,8 +6,8 @@ most contributions touch exactly one module.
 ## Getting set up
 
 ```bash
-git clone https://github.com/ArticaVisuals/glyphblueprint
-cd glyphblueprint
+git clone https://github.com/ArticaVisuals/type-design-xray
+cd type-design-xray
 python3 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev,raster]"
 .venv/bin/python -m pytest
@@ -16,10 +16,10 @@ python3 -m venv .venv
 ## The architecture, in one paragraph
 
 Parsers read a source file and emit the internal representation in
-[`glyphblueprint/ir.py`](glyphblueprint/ir.py). The layout engine turns a string
+[`typedesignxray/ir.py`](typedesignxray/ir.py). The layout engine turns a string
 plus a parsed font into positioned glyphs. The config layer resolves defaults,
 presets, config files and CLI overrides into one `Style`
-([`glyphblueprint/style.py`](glyphblueprint/style.py)). The renderer takes
+([`typedesignxray/style.py`](typedesignxray/style.py)). The renderer takes
 layout plus style and returns SVG. Exporters turn SVG into PNG or PDF. The CLI
 wires it together.
 
@@ -44,9 +44,9 @@ reason and should come with a note in [`docs/CONTRACT.md`](docs/CONTRACT.md).
 
 ## Adding a new source format
 
-Write `glyphblueprint/parsers/yourformat.py` exposing
+Write `typedesignxray/parsers/yourformat.py` exposing
 `parse_yourformat(path, layer=None, master=None) -> ir.Font`, register it in
-`glyphblueprint/parsers/__init__.py`, and add tests. If the format cannot
+`typedesignxray/parsers/__init__.py`, and add tests. If the format cannot
 express smooth-vs-corner node classification, set `node_types_exact=False` and
 use `ir.infer_smooth` — and add a line to the README's known-limitations table.
 

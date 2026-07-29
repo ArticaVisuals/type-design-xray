@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from glyphblueprint import ir
-from glyphblueprint import api
-from glyphblueprint.api import blueprint_to_files
-from glyphblueprint.style import Style
+from typedesignxray import ir
+from typedesignxray import api
+from typedesignxray.api import blueprint_to_files
+from typedesignxray.style import Style
 
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "BlueprintDemo.glyphs"
@@ -55,7 +55,7 @@ def test_explicit_file_remains_a_file_for_multiple_per_glyph_formats(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from glyphblueprint.render import raster
+    from typedesignxray.render import raster
 
     def write_png(svg: str, path: Path, width: int) -> Path:
         destination = Path(path)
@@ -89,7 +89,7 @@ def test_format_string_is_normalised_deduplicated_and_keeps_order(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from glyphblueprint.render import raster
+    from typedesignxray.render import raster
 
     widths = []
 

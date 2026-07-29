@@ -8,8 +8,8 @@ from typing import Any, Callable, Sequence, Tuple
 import pytest
 from fontTools.ufoLib import UFOWriter
 
-from glyphblueprint.layout import kern_value, layout_string
-from glyphblueprint.parsers.ufo import list_layers, parse_ufo
+from typedesignxray.layout import kern_value, layout_string
+from typedesignxray.parsers.ufo import list_layers, parse_ufo
 
 
 def _write_glyph(

@@ -8,9 +8,9 @@ import pytest
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 
-from glyphblueprint import ir
-from glyphblueprint.parsers import binary
-from glyphblueprint.parsers.binary import parse_binary
+from typedesignxray import ir
+from typedesignxray.parsers import binary
+from typedesignxray.parsers.binary import parse_binary
 
 
 from _real_fonts import REAL_OTF as REAL_FONT  # noqa: E402
@@ -19,7 +19,7 @@ from _real_fonts import REAL_OTF as REAL_FONT  # noqa: E402
 @pytest.fixture(scope="module")
 def real_font() -> ir.Font:
     if not REAL_FONT.is_file():
-        pytest.skip("set GLYPHBLUEPRINT_TEST_OTF to run this")
+        pytest.skip("set TDXRAY_TEST_OTF to run this")
     return parse_binary(REAL_FONT)
 
 

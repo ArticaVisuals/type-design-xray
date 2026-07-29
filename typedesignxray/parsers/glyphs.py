@@ -8,8 +8,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
-from glyphblueprint import ir
-from glyphblueprint.parsers import plist
+from typedesignxray import ir
+from typedesignxray.parsers import plist
 
 
 @dataclass

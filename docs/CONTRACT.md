@@ -1,7 +1,7 @@
 # Build contract (read before writing any module)
 
 This file is authored by the project lead and is **frozen**. Every module codes
-against it. Do not edit `glyphblueprint/ir.py` or `glyphblueprint/style.py` —
+against it. Do not edit `typedesignxray/ir.py` or `typedesignxray/style.py` —
 if you believe a contract change is required, stop and report it instead.
 
 ## Module ownership
@@ -11,18 +11,18 @@ another module.
 
 | Module | Owns |
 |---|---|
-| Contracts (lead) | `glyphblueprint/ir.py`, `glyphblueprint/style.py`, `pyproject.toml` |
-| A — glyphs parser | `glyphblueprint/parsers/glyphs.py`, `glyphblueprint/parsers/plist.py`, `tests/test_glyphs_parser.py` |
-| B — binary parser | `glyphblueprint/parsers/binary.py`, `tests/test_binary_parser.py` |
-| C — layout | `glyphblueprint/layout.py`, `tests/test_layout.py` |
-| D — renderer | `glyphblueprint/render/svg.py`, `tests/test_svg_render.py` |
-| E — config/export | `glyphblueprint/config.py`, `glyphblueprint/render/raster.py`, `presets/*.json`, `tests/test_config.py` |
-| G — ufo parser | `glyphblueprint/parsers/ufo.py`, `tests/test_ufo_parser.py` |
-| F — CLI | `glyphblueprint/cli.py`, `glyphblueprint/api.py`, `glyphblueprint/__init__.py`, `glyphblueprint/parsers/__init__.py`, `tests/test_cli.py` |
+| Contracts (lead) | `typedesignxray/ir.py`, `typedesignxray/style.py`, `pyproject.toml` |
+| A — glyphs parser | `typedesignxray/parsers/glyphs.py`, `typedesignxray/parsers/plist.py`, `tests/test_glyphs_parser.py` |
+| B — binary parser | `typedesignxray/parsers/binary.py`, `tests/test_binary_parser.py` |
+| C — layout | `typedesignxray/layout.py`, `tests/test_layout.py` |
+| D — renderer | `typedesignxray/render/svg.py`, `tests/test_svg_render.py` |
+| E — config/export | `typedesignxray/config.py`, `typedesignxray/render/raster.py`, `presets/*.json`, `tests/test_config.py` |
+| G — ufo parser | `typedesignxray/parsers/ufo.py`, `tests/test_ufo_parser.py` |
+| F — CLI | `typedesignxray/cli.py`, `typedesignxray/api.py`, `typedesignxray/__init__.py`, `typedesignxray/parsers/__init__.py`, `tests/test_cli.py` |
 
 ## The internal representation
 
-Defined in `glyphblueprint/ir.py`. Read that file — it is short and fully
+Defined in `typedesignxray/ir.py`. Read that file — it is short and fully
 documented. Summary:
 
 ```
@@ -59,9 +59,9 @@ Invariants every parser must satisfy:
 
 ## The style model
 
-Defined in `glyphblueprint/style.py`. `Style` is a nested dataclass tree with
+Defined in `typedesignxray/style.py`. `Style` is a nested dataclass tree with
 `to_dict()` / `from_dict()` / `merged(dict)` / `set_path("a.b.c", value)`.
-There are 85 settable leaves (run `glyphblueprint --list-style-keys` for the
+There are 85 settable leaves (run `type-design-xray --list-style-keys` for the
 current list). The renderer reads `Style` and nothing else for visual decisions
 — no hard-coded colours, sizes, or dash patterns anywhere.
 
@@ -95,8 +95,8 @@ attributes. Rules the renderer must keep:
 * Test inputs: everything that can be synthesised lives in `tests/fixtures/`
   or `examples/BlueprintDemo.glyphs`, and the suite is fully green with no
   setup. A few tests additionally run against a real production source when
-  one is configured via `GLYPHBLUEPRINT_TEST_GLYPHS` /
-  `GLYPHBLUEPRINT_TEST_OTF` (see `tests/_real_fonts.py`); those must
+  one is configured via `TDXRAY_TEST_GLYPHS` /
+  `TDXRAY_TEST_OTF` (see `tests/_real_fonts.py`); those must
   `pytest.skip` when unset and must assert only format-independent
   invariants, never values specific to one typeface.
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from glyphblueprint.cli import main
+from typedesignxray.cli import main
 
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "BlueprintDemo.glyphs"
@@ -210,7 +210,7 @@ def test_missing_raster_backend_keeps_svg(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from glyphblueprint.render import raster
+    from typedesignxray.render import raster
 
     monkeypatch.setattr(raster, "_load_cairosvg", lambda: None)
     monkeypatch.setattr(raster.shutil, "which", lambda command: None)
@@ -229,7 +229,7 @@ def test_missing_raster_backend_keeps_svg(
     assert result == 2
     assert destination.exists()
     assert not destination.with_suffix(".png").exists()
-    assert 'pip install "glyphblueprint[raster]"' in captured.err
+    assert 'pip install "type-design-xray[raster]"' in captured.err
     assert "Traceback" not in captured.err
 
 
@@ -238,7 +238,7 @@ def test_png_only_request_keeps_svg_when_raster_backend_is_missing(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from glyphblueprint.render import raster
+    from typedesignxray.render import raster
 
     monkeypatch.setattr(raster, "_load_cairosvg", lambda: None)
     monkeypatch.setattr(raster.shutil, "which", lambda command: None)
@@ -262,7 +262,7 @@ def test_png_only_request_keeps_svg_when_raster_backend_is_missing(
     assert ET.parse(fallback).getroot().tag.endswith("svg")
     assert not destination.exists()
     assert "wrote {}".format(fallback) in captured.out
-    assert 'pip install "glyphblueprint[raster]"' in captured.err
+    assert 'pip install "type-design-xray[raster]"' in captured.err
     assert "Traceback" not in captured.err
 
 

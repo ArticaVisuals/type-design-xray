@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from glyphblueprint.api import blueprint
-from glyphblueprint.config import available_presets, resolve_style
-from glyphblueprint.layout import kern_value, layout_string
-from glyphblueprint.parsers.glyphs import list_layers, parse_glyphs
-from glyphblueprint.render.svg import render_svg
+from typedesignxray.api import blueprint
+from typedesignxray.config import available_presets, resolve_style
+from typedesignxray.layout import kern_value, layout_string
+from typedesignxray.parsers.glyphs import list_layers, parse_glyphs
+from typedesignxray.render.svg import render_svg
 
 DEMO = Path(__file__).resolve().parent.parent / "examples" / "BlueprintDemo.glyphs"
 

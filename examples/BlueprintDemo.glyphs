@@ -1,7 +1,7 @@
 {
 .appVersion = "3879";
 .formatVersion = 4;
-copyright = "Public domain. Made for glyphblueprint examples.";
+copyright = "Public domain. Made for Type Design X-Ray examples.";
 date = "2026-07-28 12:00:00 +0000";
 familyName = "Blueprint Demo";
 fontMaster = (

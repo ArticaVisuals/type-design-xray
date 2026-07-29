@@ -13,7 +13,7 @@ from fontTools.pens.recordingPen import RecordingPointPen
 from fontTools.ufoLib import UFOReader
 from fontTools.ufoLib.errors import UFOLibError
 
-from glyphblueprint import ir
+from typedesignxray import ir
 
 
 @dataclass

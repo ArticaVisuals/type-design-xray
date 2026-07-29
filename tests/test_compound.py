@@ -5,8 +5,8 @@ from typing import Dict, Iterable, Tuple
 
 import pytest
 
-from glyphblueprint import ir
-from glyphblueprint.compound import (
+from typedesignxray import ir
+from typedesignxray.compound import (
     _contour_from_path,
     _expand_quadratics,
     _matched_smooth,
@@ -14,8 +14,8 @@ from glyphblueprint.compound import (
     compound_glyph,
     is_available,
 )
-from glyphblueprint.parsers.binary import parse_binary
-from glyphblueprint.parsers.glyphs import parse_glyphs
+from typedesignxray.parsers.binary import parse_binary
+from typedesignxray.parsers.glyphs import parse_glyphs
 
 
 pytestmark = pytest.mark.skipif(
@@ -146,7 +146,7 @@ def test_authored_smooth_flags_survive_at_unchanged_coordinates() -> None:
 def test_glyph_with_only_open_contours_is_returned_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import glyphblueprint.compound as compound
+    import typedesignxray.compound as compound
 
     open_contour = _contour(
         [(0, 0), (50, 75), (100, 0)],
@@ -242,7 +242,7 @@ def test_quadratic_segments_from_skia_are_upconverted_to_cubics():
     Regression: compounding the real font crashed on glyph 'j' because
     ``qCurveTo`` was rejected outright rather than converted.
     """
-    from glyphblueprint.compound import _expand_quadratics
+    from typedesignxray.compound import _expand_quadratics
 
     start = (0.0, 0.0)
     control = (30.0, 60.0)

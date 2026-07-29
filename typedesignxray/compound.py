@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from . import ir
 
 
-_INSTALL_COMMAND = 'pip install "glyphblueprint[compound]"'
+_INSTALL_COMMAND = 'pip install "type-design-xray[compound]"'
 _MATCH_EPSILON = 0.01
 
 

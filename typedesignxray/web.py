@@ -1,4 +1,4 @@
-"""Local browser preview for testing glyphblueprint end to end."""
+"""Local browser preview for testing Type Design X-Ray end to end."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ _UPLOAD_FONT_SUFFIXES = frozenset(
     suffix for suffix in _SUPPORTED_FONT_SUFFIXES if suffix != ".ufo"
 )
 _UPLOAD_DIRECTORY = Path(
-    tempfile.mkdtemp(prefix="glyphblueprint-uploads-")
+    tempfile.mkdtemp(prefix="type-design-xray-uploads-")
 ).resolve()
 atexit.register(shutil.rmtree, str(_UPLOAD_DIRECTORY), ignore_errors=True)
 _COLOR_PATHS = (
@@ -208,7 +208,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>glyphblueprint local preview</title>
+  <title>Type Design X-Ray local preview</title>
   <style>
     :root {
       color-scheme: dark;
@@ -654,7 +654,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
 <body>
   <div class="shell">
     <aside>
-      <h1>glyphblueprint</h1>
+      <h1>Type Design X-Ray</h1>
       <p class="lede">Local end-to-end preview. Every render is generated from the selected font by the Python exporter.</p>
       <form id="controls">
         <div>
@@ -1356,7 +1356,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       const url = URL.createObjectURL(new Blob([latestSvg], {type: "image/svg+xml"}));
       const link = document.createElement("a");
       link.href = url;
-      link.download = "glyphblueprint.svg";
+      link.download = "type-design-xray.svg";
       link.click();
       URL.revokeObjectURL(url);
     });
@@ -1718,7 +1718,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         overrides=render_overrides,
         tracking=tracking,
         apply_kerning=apply_kerning,
-        title="glyphblueprint preview",
+        title="Type Design X-Ray preview",
     )
     if not metric_lines:
         svg = _METRIC_LINE_ELEMENT.sub("", svg)
@@ -1750,7 +1750,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 class PreviewHandler(BaseHTTPRequestHandler):
     """Serve the preview page and its local upload/render endpoints."""
 
-    server_version = "glyphblueprint-preview/1.0"
+    server_version = "type-design-xray-preview/1.0"
 
     def _send(
         self, status: int, payload: bytes, content_type: str
@@ -1869,8 +1869,8 @@ def create_server(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="glyphblueprint-preview",
-        description="Run the local glyphblueprint browser preview.",
+        prog="type-design-xray-preview",
+        description="Run the local Type Design X-Ray browser preview.",
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
@@ -1881,7 +1881,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parser().parse_args(argv)
     if not 0 <= args.port <= 65535:
         print(
-            "glyphblueprint-preview: error: port must be between 0 and 65535",
+            "type-design-xray-preview: error: port must be between 0 and 65535",
             file=sys.stderr,
         )
         return 2
@@ -1892,7 +1892,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # likely failure here, and a socket traceback is a poor way to say so.
         if exc.errno == errno.EADDRINUSE:
             print(
-                "glyphblueprint-preview: error: port {} is already in use. "
+                "type-design-xray-preview: error: port {} is already in use. "
                 "A preview may already be running at http://{}:{}/ — open "
                 "that, or start this one on another port with --port {}.".format(
                     args.port, args.host, args.port, args.port + 1
@@ -1901,20 +1901,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         elif exc.errno in (errno.EACCES, errno.EPERM):
             print(
-                "glyphblueprint-preview: error: not allowed to listen on port "
+                "type-design-xray-preview: error: not allowed to listen on port "
                 "{}. Ports below 1024 need elevated privileges; try "
                 "--port 8765.".format(args.port),
                 file=sys.stderr,
             )
         else:
             print(
-                "glyphblueprint-preview: error: could not start on {}:{}: "
+                "type-design-xray-preview: error: could not start on {}:{}: "
                 "{}".format(args.host, args.port, exc),
                 file=sys.stderr,
             )
         return 2
     host, port = server.server_address[:2]
-    print("glyphblueprint preview: http://{}:{}/".format(host, port), flush=True)
+    print("Type Design X-Ray preview: http://{}:{}/".format(host, port), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

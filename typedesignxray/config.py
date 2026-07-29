@@ -1,6 +1,6 @@
 """Configuration loading and style resolution.
 
-The renderer consumes one fully resolved :class:`~glyphblueprint.style.Style`.
+The renderer consumes one fully resolved :class:`~typedesignxray.style.Style`.
 This module keeps file formats, preset provenance, and friendly validation
 errors out of the rendering path.
 """

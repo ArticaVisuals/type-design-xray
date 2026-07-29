@@ -11,10 +11,10 @@ from urllib.parse import quote
 
 import pytest
 
-from glyphblueprint.api import blueprint
-from glyphblueprint.config import available_presets, resolve_style
-from glyphblueprint.style import METRIC_NAMES
-from glyphblueprint.web import (
+from typedesignxray.api import blueprint
+from typedesignxray.config import available_presets, resolve_style
+from typedesignxray.style import METRIC_NAMES
+from typedesignxray.web import (
     _MAX_UPLOAD_BYTES,
     _UPLOAD_DIRECTORY,
     _preview_page,
@@ -404,7 +404,7 @@ def test_omitted_metric_fields_keep_all_guides_lines_and_numbers() -> None:
         },
         tracking=request["tracking"],
         apply_kerning=request["apply_kerning"],
-        title="glyphblueprint preview",
+        title="Type Design X-Ray preview",
     )
     root = ET.fromstring(rendered)
 
@@ -764,7 +764,7 @@ def test_untouched_colours_are_byte_identical_to_plain_preset() -> None:
         },
         tracking=request["tracking"],
         apply_kerning=request["apply_kerning"],
-        title="glyphblueprint preview",
+        title="Type Design X-Ray preview",
     )
 
     assert rendered == plain
@@ -1009,7 +1009,7 @@ def test_render_request_rejects_invalid_input(change, problem) -> None:
 def test_http_server_serves_page_health_and_render_endpoint() -> None:
     page_status, page = _get("/", parse_json=False)
     assert page_status == 200
-    assert "glyphblueprint" in page
+    assert "Type Design X-Ray" in page
     assert "/api/render" in page
 
     health_status, health = _get("/health")
@@ -1075,7 +1075,7 @@ def test_preview_reports_a_busy_port_without_a_traceback(
     capsys, monkeypatch
 ):
     """Re-running the preview while one is open is the likeliest failure."""
-    import glyphblueprint.web as web
+    import typedesignxray.web as web
 
     def busy_server(host, port):
         raise OSError(errno.EADDRINUSE, "Address already in use")

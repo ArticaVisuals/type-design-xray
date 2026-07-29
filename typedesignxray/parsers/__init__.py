@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, List, Optional
 
-from glyphblueprint import ir
+from typedesignxray import ir
 
 from .binary import parse_binary
 from .glyphs import list_layers, parse_glyphs
@@ -41,7 +41,7 @@ def _ufo_module() -> Any:
         return importlib.import_module(".ufo", __name__)
     except (ImportError, ModuleNotFoundError) as exc:
         raise RuntimeError(
-            "UFO support is unavailable because glyphblueprint.parsers.ufo "
+            "UFO support is unavailable because typedesignxray.parsers.ufo "
             "is not installed."
         ) from exc
 
@@ -62,7 +62,7 @@ def load_font(
         parser = getattr(_ufo_module(), "parse_ufo", None)
         if parser is None:
             raise RuntimeError(
-                "UFO support is unavailable: glyphblueprint.parsers.ufo "
+                "UFO support is unavailable: typedesignxray.parsers.ufo "
                 "does not export parse_ufo()."
             )
         return parser(path, layer=layer, master=master, **kw)
@@ -83,7 +83,7 @@ def list_font_layers(path: Any, glyph_name: str) -> List[ir.LayerInfo]:
         lister = getattr(_ufo_module(), "list_layers", None)
         if lister is None:
             raise RuntimeError(
-                "UFO layer listing is unavailable: glyphblueprint.parsers.ufo "
+                "UFO layer listing is unavailable: typedesignxray.parsers.ufo "
                 "does not export list_layers()."
             )
         return lister(path, glyph_name)

@@ -1,5 +1,5 @@
 # A worked example: start from a preset, then change only what you need.
-# Use with:  glyphblueprint MyFont.glyphs "afz" --config examples/style-example.toml
+# Use with:  type-design-xray MyFont.glyphs "afz" --config examples/style-example.toml
 preset = "blueprint"
 
 [canvas]

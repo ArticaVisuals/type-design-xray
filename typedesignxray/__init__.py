@@ -1,4 +1,4 @@
-"""Public package surface for glyphblueprint."""
+"""Public package surface for Type Design X-Ray."""
 
 from __future__ import annotations
 

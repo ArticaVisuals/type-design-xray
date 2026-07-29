@@ -7,8 +7,8 @@ contain shapes and quirks that synthetic fixtures do not.
 
 Point these at your own files to enable those tests::
 
-    export GLYPHBLUEPRINT_TEST_GLYPHS=~/fonts/MyFont.glyphs
-    export GLYPHBLUEPRINT_TEST_OTF=~/fonts/MyFont-Regular.otf
+    export TDXRAY_TEST_GLYPHS=~/fonts/MyFont.glyphs
+    export TDXRAY_TEST_OTF=~/fonts/MyFont-Regular.otf
 
 They are skipped when unset, so a fresh clone is green with no setup. Tests
 using them assert only format-independent invariants -- never values specific
@@ -33,11 +33,11 @@ def _from_env(name: str) -> Path:
     return path if path.exists() else _MISSING
 
 
-REAL_GLYPHS = _from_env("GLYPHBLUEPRINT_TEST_GLYPHS")
-REAL_OTF = _from_env("GLYPHBLUEPRINT_TEST_OTF")
+REAL_GLYPHS = _from_env("TDXRAY_TEST_GLYPHS")
+REAL_OTF = _from_env("TDXRAY_TEST_OTF")
 
 SKIP_REASON = (
-    "set GLYPHBLUEPRINT_TEST_GLYPHS / GLYPHBLUEPRINT_TEST_OTF to run this"
+    "set TDXRAY_TEST_GLYPHS / TDXRAY_TEST_OTF to run this"
 )
 
 __all__ = ["REAL_GLYPHS", "REAL_OTF", "SKIP_REASON"]

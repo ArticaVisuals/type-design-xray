@@ -3,14 +3,14 @@ requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "glyphblueprint"
+name = "type-design-xray"
 version = "1.0.0"
-description = "Export styled blueprint images of letterforms -- outline, nodes, bezier handles -- straight from font source files."
+description = "X-ray any letterform: outline, nodes and bezier handles, exported straight from your font source files."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Micah Hoang" }]
-keywords = ["font", "typography", "glyphs", "bezier", "svg", "type-design"]
+keywords = ["font", "typography", "glyphs", "bezier", "svg", "type-design", "after-effects"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -35,18 +35,20 @@ compound = ["skia-pathops>=0.8"]
 dev = ["pytest>=7.0"]
 
 [project.scripts]
-glyphblueprint = "glyphblueprint.cli:main"
-glyphblueprint-preview = "glyphblueprint.web:main"
+type-design-xray = "typedesignxray.cli:main"
+tdxray = "typedesignxray.cli:main"
+type-design-xray-preview = "typedesignxray.web:main"
+tdxray-preview = "typedesignxray.web:main"
 
 [project.urls]
-Homepage = "https://github.com/ArticaVisuals/glyphblueprint"
-Issues = "https://github.com/ArticaVisuals/glyphblueprint/issues"
+Homepage = "https://github.com/ArticaVisuals/type-design-xray"
+Issues = "https://github.com/ArticaVisuals/type-design-xray/issues"
 
 [tool.setuptools.packages.find]
-include = ["glyphblueprint*"]
+include = ["typedesignxray*"]
 
 [tool.setuptools.package-data]
-glyphblueprint = ["presets/*.json"]
+typedesignxray = ["presets/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

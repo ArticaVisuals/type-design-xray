@@ -42,7 +42,7 @@ def _missing_backend(format_name: str) -> RuntimeError:
     )
     return RuntimeError(
         "No SVG backend is available for {} export{}. Install the Python "
-        "backend with: pip install \"glyphblueprint[raster]\". On macOS, "
+        "backend with: pip install \"type-design-xray[raster]\". On macOS, "
         "install Cairo first with: brew install cairo. Alternatively, install "
         "the resvg or rsvg-convert command-line tool.".format(
             format_name.upper(), qualification

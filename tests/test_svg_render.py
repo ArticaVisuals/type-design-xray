@@ -5,9 +5,9 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from glyphblueprint import ir
-from glyphblueprint import style as style_contract
-from glyphblueprint.render.svg import render_glyph_svg, render_svg
+from typedesignxray import ir
+from typedesignxray import style as style_contract
+from typedesignxray.render.svg import render_glyph_svg, render_svg
 
 
 SVG = {"svg": "http://www.w3.org/2000/svg"}

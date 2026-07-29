@@ -7,9 +7,9 @@ from typing import Optional
 
 import pytest
 
-from glyphblueprint import config
-from glyphblueprint import style
-from glyphblueprint.render import raster
+from typedesignxray import config
+from typedesignxray import style
+from typedesignxray.render import raster
 
 
 PRESET_NAMES = {"blueprint", "light", "contrast", "drafting"}
@@ -235,7 +235,7 @@ def test_missing_raster_backends_raise_actionable_error(
         with pytest.raises(RuntimeError) as error:
             exporter("<svg xmlns='http://www.w3.org/2000/svg'/>", destination)
         message = str(error.value)
-        assert 'pip install "glyphblueprint[raster]"' in message
+        assert 'pip install "type-design-xray[raster]"' in message
         assert "brew install cairo" in message
 
 

@@ -1,4 +1,4 @@
-# glyphblueprint
+# Type Design X-Ray
 
 Export styled **blueprint drawings of letterforms** — the outline, every
 on-curve node, every off-curve bezier handle, and the handle lines between them
@@ -50,8 +50,8 @@ then use `python` instead of `python3` in the commands below.)
 **Step 1 — download the project.**
 
 ```bash
-git clone https://github.com/ArticaVisuals/glyphblueprint
-cd glyphblueprint
+git clone https://github.com/ArticaVisuals/type-design-xray
+cd type-design-xray
 ```
 
 No `git`? Download the ZIP from the green **Code** button on GitHub, unzip it,
@@ -59,7 +59,7 @@ and `cd` into the folder instead.
 
 **Step 2 — create an isolated environment and install.**
 
-This keeps glyphblueprint and its dependencies out of your system Python, so
+This keeps type-design-xray and its dependencies out of your system Python, so
 nothing else on your machine is affected.
 
 ```bash
@@ -77,7 +77,7 @@ off if you don't need it — plain `pip install .` works fine.
 summary:
 
 ```bash
-.venv/bin/glyphblueprint examples/BlueprintDemo.glyphs "Vao" --out blueprint.svg
+.venv/bin/type-design-xray examples/BlueprintDemo.glyphs "Vao" --out blueprint.svg
 ```
 
 Open `blueprint.svg` in a browser, Illustrator, or Figma.
@@ -85,12 +85,13 @@ Open `blueprint.svg` in a browser, Illustrator, or Figma.
 ### Activating it in later sessions
 
 The `.venv/bin/` prefix above always works and needs no activation. If you'd
-rather type just `glyphblueprint`, activate the environment first:
+rather type just `type-design-xray` (or the short alias `tdxray`),
+activate the environment first:
 
 ```bash
-cd glyphblueprint
+cd type-design-xray
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-glyphblueprint --version
+type-design-xray --version
 ```
 
 Run `deactivate` to leave. You'll need to activate again in each new terminal —
@@ -101,7 +102,7 @@ which is why the `.venv/bin/` form is often simpler.
 The fastest way to try it. Start the preview:
 
 ```bash
-.venv/bin/glyphblueprint-preview
+.venv/bin/type-design-xray-preview
 ```
 
 Then open **[http://127.0.0.1:8765/](http://127.0.0.1:8765/)** in your browser
@@ -149,7 +150,7 @@ Use `--port` if 8765 is taken.
 SVG export needs nothing extra. PNG and PDF need a rendering backend:
 
 ```bash
-pip install "glyphblueprint[raster]"
+pip install "type-design-xray[raster]"
 ```
 
 On macOS that also needs the Cairo system library, which Homebrew provides:
@@ -165,32 +166,32 @@ still writes the SVG.
 
 ```bash
 # The basic blueprint
-glyphblueprint MyFont.glyphs "afz" --out afz.svg
+type-design-xray MyFont.glyphs "afz" --out afz.svg
 
 # With metric guides and numeric labels
-glyphblueprint MyFont.glyphs "afz" --metrics baseline,xheight,capheight,sidebearings --out afz.svg
+type-design-xray MyFont.glyphs "afz" --metrics baseline,xheight,capheight,sidebearings --out afz.svg
 
 # A different look
-glyphblueprint MyFont.glyphs "Rag" --preset drafting --out rag.svg
+type-design-xray MyFont.glyphs "Rag" --preset drafting --out rag.svg
 
 # Draw a hand-made centreline layer instead of the outline
-glyphblueprint MyFont.glyphs "a" --layer "Skeleton v1" --out skeleton.svg
+type-design-xray MyFont.glyphs "a" --layer "Skeleton v1" --out skeleton.svg
 
 # See what layers a glyph has
-glyphblueprint MyFont.glyphs --list-layers a
+type-design-xray MyFont.glyphs --list-layers a
 
 # PNG at a specific width
-glyphblueprint MyFont.glyphs "afz" --format svg,png --png-width 2400 --out afz.svg
+type-design-xray MyFont.glyphs "afz" --format svg,png --png-width 2400 --out afz.svg
 
 # One file per glyph, as well as the combined lockup
-glyphblueprint MyFont.glyphs "afz" --per-glyph --out out/
+type-design-xray MyFont.glyphs "afz" --per-glyph --out out/
 ```
 
 Typing a glyph *name* rather than a character — useful for `&`, `.`, or
 alternates — uses a leading slash, the convention type designers already know:
 
 ```bash
-glyphblueprint MyFont.glyphs "/ampersand/period/a.alt" --out named.svg
+type-design-xray MyFont.glyphs "/ampersand/period/a.alt" --out named.svg
 ```
 
 ## Presets
@@ -211,7 +212,7 @@ Nothing is hard-coded. Anything you can see, you can change — from a config fi
 (JSON or TOML) or straight from the command line.
 
 ```bash
-glyphblueprint MyFont.glyphs "afz" \
+type-design-xray MyFont.glyphs "afz" \
   --set handles.point.shape=diamond \
   --set handles.point.size=5 \
   --set handles.line.dash=dotted \
@@ -226,7 +227,7 @@ glyphblueprint MyFont.glyphs "afz" \
 Or put it in a file — see [`examples/style-example.toml`](examples/style-example.toml):
 
 ```bash
-glyphblueprint MyFont.glyphs "afz" --config examples/style-example.toml
+type-design-xray MyFont.glyphs "afz" --config examples/style-example.toml
 ```
 
 `--config` and `--set` compose, in this order:
@@ -235,7 +236,7 @@ glyphblueprint MyFont.glyphs "afz" --config examples/style-example.toml
 built-in defaults  →  preset  →  config file  →  explicit flags  →  --set
 ```
 
-Run `glyphblueprint --list-style-keys` to print every settable key.
+Run `type-design-xray --list-style-keys` to print every settable key.
 
 ### What you can control
 
@@ -262,7 +263,7 @@ label typeface: `label_family`, `label_size`, `label_weight`, `label_style`,
 are shorthand flags too:
 
 ```bash
-glyphblueprint MyFont.glyphs "afz" --metrics all \
+type-design-xray MyFont.glyphs "afz" --metrics all \
   --label-font "Helvetica Neue, sans-serif" --label-weight 600 --label-size 13
 ```
 
@@ -283,7 +284,7 @@ rectangle. The font compiler merges those at export. `--compound` does the same
 thing, so you can blueprint the finished outline instead of the construction:
 
 ```bash
-glyphblueprint MyFont.glyphs "f" --compound --out f.svg
+type-design-xray MyFont.glyphs "f" --compound --out f.svg
 ```
 
 <p align="center">
@@ -297,7 +298,7 @@ new nodes where the crossbar meets the stem.
 `--remove-overlap` is an alias for the same option. It needs the extra:
 
 ```bash
-pip install "glyphblueprint[compound]"
+pip install "type-design-xray[compound]"
 ```
 
 This uses `skia-pathops`, the same engine `fontmake` uses for overlap removal,
@@ -335,7 +336,7 @@ Importing several blueprints into one project? Namespace them so ids can't
 collide:
 
 ```bash
-glyphblueprint MyFont.glyphs "a" --id-prefix "shotA-" --out shotA.svg
+type-design-xray MyFont.glyphs "a" --id-prefix "shotA-" --out shotA.svg
 ```
 
 Elements also carry `data-glyph`, `data-node-index`, `data-node-type`,
@@ -349,8 +350,8 @@ backup layers (timestamp names like `Jul 2, 26 at 12:18`) and your own named
 layers.
 
 ```bash
-glyphblueprint MyFont.glyphs --list-layers a     # what's available
-glyphblueprint MyFont.glyphs "a" --layer "Skeleton v1"
+type-design-xray MyFont.glyphs --list-layers a     # what's available
+type-design-xray MyFont.glyphs "a" --layer "Skeleton v1"
 ```
 
 Open, unclosed contours are fully supported — a centreline layer draws as an
@@ -368,7 +369,7 @@ partially-drawn layer still renders a full string.
 For batching over a character set:
 
 ```python
-from glyphblueprint import blueprint, blueprint_to_files, load_font
+from typedesignxray import blueprint, blueprint_to_files, load_font
 
 svg = blueprint("MyFont.glyphs", "afz", preset="blueprint")
 
@@ -423,7 +424,7 @@ wrap around the start of the point list, flat pair kerning, group kerning, and
 an explicit zero-value pair that has to override a group kern.
 
 ```bash
-glyphblueprint examples/BlueprintDemo.glyphs "Vao" \
+type-design-xray examples/BlueprintDemo.glyphs "Vao" \
   --metrics baseline,xheight,capheight,sidebearings --out examples/output/hero.svg
 ```
 

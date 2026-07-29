@@ -1,4 +1,4 @@
-"""Command-line interface for glyphblueprint."""
+"""Command-line interface for Type Design X-Ray."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .style import METRIC_NAMES, dotted_paths
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="glyphblueprint",
+        prog="type-design-xray",
         description=(
             "Export editable SVG blueprints and optional raster files from "
             "font sources."
@@ -458,7 +458,7 @@ def _require_font(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
     if args.font_file is not None:
         return True
     parser.print_usage(sys.stderr)
-    print("glyphblueprint: error: a font file is required", file=sys.stderr)
+    print("type-design-xray: error: a font file is required", file=sys.stderr)
     return False
 
 
@@ -541,14 +541,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ) as exc:
         written_paths = getattr(exc, "written_paths", ())
         _print_written(written_paths, args.quiet)
-        print("glyphblueprint: error: {}".format(_error_message(exc)), file=sys.stderr)
+        print("type-design-xray: error: {}".format(_error_message(exc)), file=sys.stderr)
         return 2
     except Exception as exc:
         if args.verbose:
             traceback.print_exc()
         else:
             print(
-                "glyphblueprint: error: unexpected failure: {}".format(
+                "type-design-xray: error: unexpected failure: {}".format(
                     _error_message(exc)
                 ),
                 file=sys.stderr,
