@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -9,7 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from glyphblueprint.web import create_server, main, render_request
+from glyphblueprint.api import blueprint
+from glyphblueprint.config import available_presets, resolve_style
+from glyphblueprint.style import METRIC_NAMES
+from glyphblueprint.web import (
+    _preview_page,
+    create_server,
+    main,
+    render_request,
+)
 
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "BlueprintDemo.glyphs"
@@ -44,6 +53,286 @@ def test_render_request_returns_valid_svg_and_summary() -> None:
     assert any(
         element.get("data-shape") == "diamond"
         for element in root.iter()
+    )
+
+
+_COLOR_CASES = (
+    ("canvas.background", "background", "rect", "fill", None),
+    ("outline.stroke", "outline", "path", "stroke", None),
+    ("outline.fill", "fill", "path", "fill", None),
+    ("handles.line.color", "handle_lines", "line", "stroke", None),
+    ("handles.point.fill", "handle_points", "circle", "fill", None),
+    ("handles.point.stroke", "handle_points", "circle", "stroke", None),
+    ("nodes.corner.fill", "nodes", "rect", "fill", "corner"),
+    ("nodes.corner.stroke", "nodes", "rect", "stroke", "corner"),
+    ("nodes.smooth.fill", "nodes", "circle", "fill", "smooth"),
+    ("nodes.smooth.stroke", "nodes", "circle", "stroke", "smooth"),
+    ("metrics.line.color", "metrics", "line", "stroke", None),
+    ("metrics.label_color", "metrics", "text", "fill", None),
+)
+
+
+def _elements_in_layer(root: ET.Element, layer_name: str):
+    for layer in root.iter():
+        if layer.get("data-layer") == layer_name:
+            yield from layer.iter()
+
+
+def _metric_elements(root: ET.Element, tag: str):
+    return [
+        element
+        for element in _elements_in_layer(root, "metrics")
+        if element.tag.split("}")[-1] == tag
+        and element.get("data-metric") is not None
+    ]
+
+
+def test_metric_lines_can_render_without_numbers() -> None:
+    result = render_request(
+        _payload(metric_lines=True, metric_numbers=False)
+    )
+    root = ET.fromstring(result["svg"])
+
+    assert _metric_elements(root, "line")
+    assert not any(
+        element.tag.split("}")[-1] == "text"
+        for element in root.iter()
+    )
+
+
+def test_metric_numbers_can_render_without_lines() -> None:
+    result = render_request(
+        _payload(metric_lines=False, metric_numbers=True)
+    )
+    root = ET.fromstring(result["svg"])
+
+    assert _metric_elements(root, "text")
+    assert not _metric_elements(root, "line")
+
+
+def test_metric_name_subset_renders_exactly_the_selected_guides() -> None:
+    result = render_request(
+        _payload(metric_names=["baseline", "xheight"])
+    )
+    root = ET.fromstring(result["svg"])
+
+    guide_names = [
+        element.get("data-metric")
+        for element in _metric_elements(root, "line")
+    ]
+    assert guide_names == ["baseline", "xheight"]
+    assert {
+        element.get("data-metric")
+        for element in _metric_elements(root, "text")
+    } == {"baseline", "xheight"}
+
+
+def test_empty_metric_name_list_renders_no_guides() -> None:
+    result = render_request(_payload(metric_names=[]))
+    root = ET.fromstring(result["svg"])
+
+    assert not _metric_elements(root, "line")
+    assert not _metric_elements(root, "text")
+
+
+def test_render_request_rejects_unknown_metric_name() -> None:
+    unknown = "overshoot"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(metric_names=["baseline", unknown]))
+
+    message = str(caught.value)
+    assert repr(unknown) in message
+    assert "unknown metric name" in message
+    assert ", ".join(METRIC_NAMES) in message
+
+
+def test_omitted_metric_fields_keep_all_guides_lines_and_numbers() -> None:
+    request = _payload(shape="")
+    assert "metric_lines" not in request
+    assert "metric_numbers" not in request
+    assert "metric_names" not in request
+
+    rendered = render_request(request)["svg"]
+    today = blueprint(
+        EXAMPLE,
+        request["text"],
+        preset=request["preset"],
+        overrides={
+            "canvas": {
+                "frame": request["frame"],
+                "width": request["width"],
+            },
+            "metrics": {
+                "visible": request["metrics"],
+                "show": list(METRIC_NAMES),
+            },
+        },
+        tracking=request["tracking"],
+        apply_kerning=request["apply_kerning"],
+        title="glyphblueprint preview",
+    )
+    root = ET.fromstring(rendered)
+
+    assert rendered == today
+    assert {
+        element.get("data-metric")
+        for element in _metric_elements(root, "line")
+    } == set(METRIC_NAMES)
+    assert {
+        element.get("data-metric")
+        for element in _metric_elements(root, "text")
+    } == set(METRIC_NAMES)
+
+
+@pytest.mark.parametrize(
+    ("path", "layer_name", "tag", "attribute", "node_type"),
+    _COLOR_CASES,
+)
+def test_each_colour_override_reaches_rendered_svg(
+    path, layer_name, tag, attribute, node_type
+) -> None:
+    colour = "#123abc"
+    result = render_request(
+        _payload(
+            shape="",
+            colors={path: colour},
+            fill_enabled=True,
+        )
+    )
+    root = ET.fromstring(result["svg"])
+
+    assert any(
+        element.tag.split("}")[-1] == tag
+        and element.get(attribute) == colour
+        and (
+            node_type is None
+            or element.get("data-node-type") == node_type
+        )
+        for element in _elements_in_layer(root, layer_name)
+    )
+
+
+def test_render_request_rejects_unknown_colour_key() -> None:
+    key = "outline.width"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(colors={key: "#123456"}))
+
+    assert str(caught.value) == "unknown colour key {!r}".format(key)
+
+
+@pytest.mark.parametrize("value", ["red", "#12", "#12345g", None, 123456])
+def test_render_request_rejects_malformed_colour_value(value) -> None:
+    path = "outline.stroke"
+    with pytest.raises(ValueError) as caught:
+        render_request(_payload(colors={path: value}))
+
+    message = str(caught.value)
+    assert "invalid colour for {!r}".format(path) in message
+    assert "#rgb/#rrggbb" in message
+
+
+def test_none_background_omits_the_background_rect() -> None:
+    result = render_request(
+        _payload(shape="", colors={"canvas.background": "none"})
+    )
+    root = ET.fromstring(result["svg"])
+
+    assert not any(
+        element.tag.split("}")[-1] == "rect"
+        for element in _elements_in_layer(root, "background")
+    )
+
+
+def test_untouched_colours_are_byte_identical_to_plain_preset() -> None:
+    request = _payload(
+        preset="drafting",
+        shape="",
+        metrics=False,
+        colors={},
+        fill_enabled=True,
+    )
+    rendered = render_request(request)["svg"]
+    plain = blueprint(
+        EXAMPLE,
+        request["text"],
+        preset=request["preset"],
+        overrides={
+            "canvas": {
+                "frame": request["frame"],
+                "width": request["width"],
+            },
+            "metrics": {
+                "visible": request["metrics"],
+                "show": list(METRIC_NAMES),
+            },
+            "outline.fill_enabled": request["fill_enabled"],
+        },
+        tracking=request["tracking"],
+        apply_kerning=request["apply_kerning"],
+        title="glyphblueprint preview",
+    )
+
+    assert rendered == plain
+
+
+def test_preview_page_has_seeded_controls_for_every_colour_path() -> None:
+    page = _preview_page()
+    match = re.search(r"const PRESET_COLORS = (\{.*\});", page)
+
+    assert match is not None
+    preset_colors = json.loads(match.group(1))
+    assert set(preset_colors) == set(available_presets())
+    assert len(re.findall(r"<input[^>]+type=\"color\"", page)) == len(
+        _COLOR_CASES
+    )
+    assert "Reset to preset" in page
+    assert "Transparent" in page
+    assert "Fill outline" in page
+
+    paths = [case[0] for case in _COLOR_CASES]
+    for path in paths:
+        assert 'data-color-path="{}"'.format(path) in page
+    for preset in available_presets():
+        resolved = resolve_style(preset=preset)
+        assert {
+            path: preset_colors[preset][path]
+            for path in paths
+        } == {
+            path: resolved.get_path(path)
+            for path in paths
+        }
+        assert (
+            preset_colors[preset]["fill_enabled"]
+            is resolved.outline.fill_enabled
+        )
+
+
+def test_preview_page_has_ordered_disabling_metric_controls() -> None:
+    page = _preview_page()
+    controls = (
+        ("metricLines", "Metric lines"),
+        ("metricNumbers", "Metric numbers"),
+        ("metricBaseline", "Baseline"),
+        ("metricXheight", "X-height"),
+        ("metricCapheight", "Cap height"),
+        ("metricAscender", "Ascender"),
+        ("metricDescender", "Descender"),
+        ("metricSidebearings", "Side bearings"),
+    )
+
+    positions = [page.index("> Show metrics</label>")]
+    for control_id, label in controls:
+        input_pattern = (
+            r'<input id="{}"[^>]*data-metric-control checked disabled>'
+        ).format(control_id)
+        assert re.search(input_pattern, page)
+        positions.append(page.index("> {}</label>".format(label)))
+    assert positions == sorted(positions)
+    assert 'name="metric_names"' in page
+    assert "input.disabled = !form.metrics.checked;" in page
+    assert (
+        'form.metrics.addEventListener("change", updateMetricControls);'
+        in page
     )
 
 

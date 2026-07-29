@@ -39,8 +39,8 @@ glyphblueprint = "glyphblueprint.cli:main"
 glyphblueprint-preview = "glyphblueprint.web:main"
 
 [project.urls]
-Homepage = "https://github.com/micahhoang/glyphblueprint"
-Issues = "https://github.com/micahhoang/glyphblueprint/issues"
+Homepage = "https://github.com/ArticaVisuals/glyphblueprint"
+Issues = "https://github.com/ArticaVisuals/glyphblueprint/issues"
 
 [tool.setuptools.packages.find]
 include = ["glyphblueprint*"]

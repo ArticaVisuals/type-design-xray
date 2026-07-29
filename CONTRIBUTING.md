@@ -6,7 +6,7 @@ most contributions touch exactly one module.
 ## Getting set up
 
 ```bash
-git clone https://github.com/micahhoang/glyphblueprint
+git clone https://github.com/ArticaVisuals/glyphblueprint
 cd glyphblueprint
 python3 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev,raster]"

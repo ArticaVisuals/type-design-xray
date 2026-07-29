@@ -39,13 +39,13 @@ animated.
 You need **Python 3.9 or newer**. Check with `python3 --version`.
 
 ```bash
-pip install git+https://github.com/micahhoang/glyphblueprint
+pip install git+https://github.com/ArticaVisuals/glyphblueprint
 ```
 
 Or from a local clone:
 
 ```bash
-git clone https://github.com/micahhoang/glyphblueprint
+git clone https://github.com/ArticaVisuals/glyphblueprint
 cd glyphblueprint
 pip install .
 ```
@@ -67,6 +67,24 @@ glyphblueprint-preview
 Then open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). The preview runs
 only on your computer and uses the same Python parsing, layout, compounding, and
 SVG rendering code as the command-line tool.
+
+It gives you, live:
+
+- **Colour pickers** for all twelve colours — background (with a transparent
+  toggle), outline stroke and fill, handle lines, handle point fill and stroke,
+  corner and smooth node fill and stroke, metric guides, and metric label text.
+  Choosing a preset seeds every swatch with that preset's real values, so a
+  preset is a starting point rather than a straitjacket. "Reset to preset" puts
+  them back. Leave the swatches alone and the output is byte-identical to the
+  plain preset.
+- **Granular metric toggles** — a master switch, then independent checkboxes for
+  the guide *lines* and the numeric *labels*, plus one per guide (baseline,
+  x-height, cap height, ascender, descender, side bearings) so you can render
+  exactly the pieces you want.
+- Preset, marker shape, frame mode, width, tracking, named layer, remove
+  overlap and kerning, with a Download SVG button.
+
+Use `--port` if 8765 is taken.
 
 ### Optional: PNG and PDF export
 

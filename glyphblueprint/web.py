@@ -4,25 +4,46 @@ from __future__ import annotations
 
 import argparse
 import errno
+import html
 import json
 import math
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .api import blueprint
-from .config import available_presets
+from .config import available_presets, resolve_style
 from .style import FRAME_MODES, METRIC_NAMES, SHAPES
 
 
 _MAX_REQUEST_BYTES = 1_000_000
 _SUPPORTED_FONT_SUFFIXES = (".glyphs", ".otf", ".ttf", ".ufo")
+_COLOR_PATHS = (
+    "canvas.background",
+    "outline.stroke",
+    "outline.fill",
+    "handles.line.color",
+    "handles.point.fill",
+    "handles.point.stroke",
+    "nodes.corner.fill",
+    "nodes.corner.stroke",
+    "nodes.smooth.fill",
+    "nodes.smooth.stroke",
+    "metrics.line.color",
+    "metrics.label_color",
+)
+_COLOR_PATH_SET = frozenset(_COLOR_PATHS)
+_HEX_COLOR = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?")
+_METRIC_LINE_ELEMENT = re.compile(
+    r'<line\b(?=[^>]*\bdata-metric=")[^>]*/>'
+)
 
 
-_PAGE = r"""<!doctype html>
+_PAGE_TEMPLATE = r"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -112,6 +133,9 @@ _PAGE = r"""<!doctype html>
       flex-wrap: wrap;
       gap: .65rem 1rem;
     }
+    fieldset > .checks + .checks {
+      margin-top: .65rem;
+    }
     .check {
       display: inline-flex;
       align-items: center;
@@ -123,6 +147,89 @@ _PAGE = r"""<!doctype html>
       letter-spacing: 0;
       text-transform: none;
     }
+    .check:has(input:disabled) {
+      color: #8195b0;
+      opacity: .55;
+    }
+    .colour-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      margin-bottom: .45rem;
+    }
+    .colour-heading h2 {
+      margin: 0;
+      color: #bbcae0;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .colour-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .45rem .7rem;
+    }
+    .colour-control {
+      display: grid;
+      grid-template-columns: 1.8rem minmax(0, 1fr);
+      align-items: center;
+      gap: .2rem .45rem;
+      min-width: 0;
+    }
+    .colour-label {
+      min-width: 0;
+      margin: 0;
+      color: #dbe8fa;
+      font-size: .76rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      line-height: 1.2;
+      text-transform: none;
+    }
+    input[type="color"] {
+      width: 1.8rem;
+      height: 1.55rem;
+      border: 1px solid #2a4568;
+      border-radius: .4rem;
+      background: #0b1a2d;
+      padding: .12rem;
+      cursor: pointer;
+    }
+    input[type="color"]:disabled {
+      cursor: default;
+      filter: grayscale(1);
+      opacity: .35;
+    }
+    .mini-check {
+      grid-column: 1 / -1;
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      margin: .05rem 0 0;
+      color: #9db1cb;
+      font-size: .68rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .mini-check input[type="checkbox"] {
+      width: .82rem;
+      height: .82rem;
+      margin: 0;
+    }
+    .reset {
+      border: 1px solid #2d527d;
+      border-radius: .4rem;
+      background: #0d2139;
+      color: #dbeaff;
+      padding: .3rem .5rem;
+      font-size: .7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .reset:hover { filter: brightness(1.08); }
     input[type="checkbox"] {
       width: 1rem;
       height: 1rem;
@@ -229,10 +336,7 @@ _PAGE = r"""<!doctype html>
           <div>
             <label for="preset">Preset</label>
             <select id="preset" name="preset">
-              <option value="blueprint">Blueprint</option>
-              <option value="contrast">Contrast</option>
-              <option value="drafting">Drafting</option>
-              <option value="light">Light</option>
+              __PRESET_OPTIONS__
             </select>
           </div>
           <div>
@@ -275,11 +379,83 @@ _PAGE = r"""<!doctype html>
         <fieldset>
           <legend>Options</legend>
           <div class="checks">
-            <label class="check"><input id="compound" name="compound" type="checkbox"> Remove overlap</label>
             <label class="check"><input id="metrics" name="metrics" type="checkbox"> Show metrics</label>
+          </div>
+          <div class="checks">
+            <label class="check"><input id="metricLines" name="metric_lines" type="checkbox" data-metric-control checked disabled> Metric lines</label>
+            <label class="check"><input id="metricNumbers" name="metric_numbers" type="checkbox" data-metric-control checked disabled> Metric numbers</label>
+          </div>
+          <div class="checks">
+            <label class="check"><input id="metricBaseline" name="metric_names" type="checkbox" value="baseline" data-metric-control checked disabled> Baseline</label>
+            <label class="check"><input id="metricXheight" name="metric_names" type="checkbox" value="xheight" data-metric-control checked disabled> X-height</label>
+            <label class="check"><input id="metricCapheight" name="metric_names" type="checkbox" value="capheight" data-metric-control checked disabled> Cap height</label>
+            <label class="check"><input id="metricAscender" name="metric_names" type="checkbox" value="ascender" data-metric-control checked disabled> Ascender</label>
+            <label class="check"><input id="metricDescender" name="metric_names" type="checkbox" value="descender" data-metric-control checked disabled> Descender</label>
+            <label class="check"><input id="metricSidebearings" name="metric_names" type="checkbox" value="sidebearings" data-metric-control checked disabled> Side bearings</label>
+          </div>
+          <div class="checks">
+            <label class="check"><input id="compound" name="compound" type="checkbox"> Remove overlap</label>
             <label class="check"><input id="kerning" name="kerning" type="checkbox" checked> Apply kerning</label>
           </div>
         </fieldset>
+        <section aria-labelledby="coloursHeading">
+          <div class="colour-heading">
+            <h2 id="coloursHeading">Colours</h2>
+            <button class="reset" id="resetColours" type="button">Reset to preset</button>
+          </div>
+          <div class="colour-grid">
+            <div class="colour-control">
+              <input id="canvasBackground" type="color" data-color-path="canvas.background">
+              <label class="colour-label" for="canvasBackground">Background</label>
+              <label class="mini-check"><input id="transparentBackground" type="checkbox"> Transparent</label>
+            </div>
+            <div class="colour-control">
+              <input id="outlineStroke" type="color" data-color-path="outline.stroke">
+              <label class="colour-label" for="outlineStroke">Outline stroke</label>
+            </div>
+            <div class="colour-control">
+              <input id="outlineFill" type="color" data-color-path="outline.fill">
+              <label class="colour-label" for="outlineFill">Outline fill</label>
+              <label class="mini-check"><input id="fillOutline" type="checkbox"> Fill outline</label>
+            </div>
+            <div class="colour-control">
+              <input id="handleLines" type="color" data-color-path="handles.line.color">
+              <label class="colour-label" for="handleLines">Handle lines</label>
+            </div>
+            <div class="colour-control">
+              <input id="handlePointFill" type="color" data-color-path="handles.point.fill">
+              <label class="colour-label" for="handlePointFill">Handle point fill</label>
+            </div>
+            <div class="colour-control">
+              <input id="handlePointStroke" type="color" data-color-path="handles.point.stroke">
+              <label class="colour-label" for="handlePointStroke">Handle point stroke</label>
+            </div>
+            <div class="colour-control">
+              <input id="cornerNodeFill" type="color" data-color-path="nodes.corner.fill">
+              <label class="colour-label" for="cornerNodeFill">Corner node fill</label>
+            </div>
+            <div class="colour-control">
+              <input id="cornerNodeStroke" type="color" data-color-path="nodes.corner.stroke">
+              <label class="colour-label" for="cornerNodeStroke">Corner node stroke</label>
+            </div>
+            <div class="colour-control">
+              <input id="smoothNodeFill" type="color" data-color-path="nodes.smooth.fill">
+              <label class="colour-label" for="smoothNodeFill">Smooth node fill</label>
+            </div>
+            <div class="colour-control">
+              <input id="smoothNodeStroke" type="color" data-color-path="nodes.smooth.stroke">
+              <label class="colour-label" for="smoothNodeStroke">Smooth node stroke</label>
+            </div>
+            <div class="colour-control">
+              <input id="metricGuides" type="color" data-color-path="metrics.line.color">
+              <label class="colour-label" for="metricGuides">Metric guides</label>
+            </div>
+            <div class="colour-control">
+              <input id="metricLabels" type="color" data-color-path="metrics.label_color">
+              <label class="colour-label" for="metricLabels">Metric labels (text)</label>
+            </div>
+          </div>
+        </section>
         <button class="primary" id="renderButton" type="submit">Render blueprint</button>
       </form>
     </aside>
@@ -294,15 +470,65 @@ _PAGE = r"""<!doctype html>
     </main>
   </div>
   <script>
+    const PRESET_COLORS = __PRESET_COLORS__;
     const form = document.querySelector("#controls");
     const preview = document.querySelector("#preview");
     const status = document.querySelector("#status");
     const renderButton = document.querySelector("#renderButton");
     const downloadButton = document.querySelector("#downloadButton");
+    const resetColours = document.querySelector("#resetColours");
+    const transparentBackground = document.querySelector("#transparentBackground");
+    const fillOutline = document.querySelector("#fillOutline");
+    const colorInputs = Array.from(form.querySelectorAll("[data-color-path]"));
+    const metricControls = Array.from(form.querySelectorAll("[data-metric-control]"));
+    const metricNameInputs = Array.from(form.querySelectorAll('input[name="metric_names"]'));
+    const backgroundInput = form.querySelector('[data-color-path="canvas.background"]');
+    const outlineFillInput = form.querySelector('[data-color-path="outline.fill"]');
+    const optionalFillStrokes = {
+      "handles.point.fill": "handles.point.stroke",
+      "nodes.corner.fill": "nodes.corner.stroke",
+      "nodes.smooth.fill": "nodes.smooth.stroke"
+    };
+    const touchedColors = new Set();
     let latestSvg = "";
 
+    function seedColorsFromPreset() {
+      const presetColors = PRESET_COLORS[form.preset.value];
+      if (!presetColors) return;
+      colorInputs.forEach((input) => {
+        const path = input.dataset.colorPath;
+        let value = presetColors[path];
+        if (value === null) {
+          const strokePath = optionalFillStrokes[path] || "outline.stroke";
+          value = presetColors[strokePath];
+        }
+        input.value = value;
+      });
+      transparentBackground.checked = presetColors["canvas.background"] === null;
+      backgroundInput.disabled = transparentBackground.checked;
+      fillOutline.checked = presetColors.fill_enabled;
+      outlineFillInput.disabled = !fillOutline.checked;
+      touchedColors.clear();
+    }
+
+    function updateMetricControls() {
+      metricControls.forEach((input) => {
+        input.disabled = !form.metrics.checked;
+      });
+    }
+
     function payload() {
-      return {
+      const colors = {};
+      colorInputs.forEach((input) => {
+        const path = input.dataset.colorPath;
+        if (!touchedColors.has(path)) return;
+        colors[path] = (
+          path === "canvas.background" && transparentBackground.checked
+            ? "none"
+            : input.value
+        );
+      });
+      const request = {
         font_path: form.font_path.value,
         text: form.text.value,
         preset: form.preset.value,
@@ -313,8 +539,16 @@ _PAGE = r"""<!doctype html>
         layer: form.layer.value,
         compound: form.compound.checked,
         metrics: form.metrics.checked,
-        apply_kerning: form.kerning.checked
+        metric_lines: form.metric_lines.checked,
+        metric_numbers: form.metric_numbers.checked,
+        metric_names: metricNameInputs
+          .filter((input) => input.checked)
+          .map((input) => input.value),
+        apply_kerning: form.kerning.checked,
+        fill_enabled: fillOutline.checked,
+        colors
       };
+      return request;
     }
 
     async function renderBlueprint(event) {
@@ -346,6 +580,21 @@ _PAGE = r"""<!doctype html>
       }
     }
 
+    colorInputs.forEach((input) => {
+      input.addEventListener("input", () => {
+        touchedColors.add(input.dataset.colorPath);
+      });
+    });
+    transparentBackground.addEventListener("change", () => {
+      backgroundInput.disabled = transparentBackground.checked;
+      touchedColors.add("canvas.background");
+    });
+    fillOutline.addEventListener("change", () => {
+      outlineFillInput.disabled = !fillOutline.checked;
+    });
+    form.preset.addEventListener("change", seedColorsFromPreset);
+    resetColours.addEventListener("click", seedColorsFromPreset);
+    form.metrics.addEventListener("change", updateMetricControls);
     form.addEventListener("submit", renderBlueprint);
     downloadButton.addEventListener("click", () => {
       if (!latestSvg) return;
@@ -357,11 +606,46 @@ _PAGE = r"""<!doctype html>
       URL.revokeObjectURL(url);
     });
 
+    seedColorsFromPreset();
+    updateMetricControls();
     renderBlueprint();
   </script>
 </body>
 </html>
 """
+
+
+def _preview_page() -> str:
+    presets = available_presets()
+    options = []
+    preset_colors = {}
+    for name in presets:
+        selected = " selected" if name == "blueprint" else ""
+        options.append(
+            '<option value="{}"{}>{}</option>'.format(
+                html.escape(name, quote=True),
+                selected,
+                html.escape(name.replace("-", " ").title()),
+            )
+        )
+        resolved = resolve_style(preset=name)
+        colors = {
+            path: resolved.get_path(path)
+            for path in _COLOR_PATHS
+        }
+        colors["fill_enabled"] = resolved.outline.fill_enabled
+        preset_colors[name] = colors
+
+    colors_json = json.dumps(
+        preset_colors,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).replace("<", "\\u003c")
+    return (
+        _PAGE_TEMPLATE
+        .replace("__PRESET_OPTIONS__", "\n              ".join(options))
+        .replace("__PRESET_COLORS__", colors_json)
+    )
 
 
 def _string(payload: Dict[str, Any], key: str, default: str = "") -> str:
@@ -397,6 +681,43 @@ def _number(
             "{} must be between {:g} and {:g}".format(key, minimum, maximum)
         )
     return number
+
+
+def _colors(payload: Dict[str, Any]) -> Dict[str, str]:
+    values = payload.get("colors", {})
+    if not isinstance(values, dict):
+        raise ValueError("colors must be an object mapping style paths to colours")
+
+    overrides = {}
+    for key, value in values.items():
+        if key not in _COLOR_PATH_SET:
+            raise ValueError("unknown colour key {!r}".format(key))
+        if not isinstance(value, str) or (
+            value != "none" and _HEX_COLOR.fullmatch(value) is None
+        ):
+            raise ValueError(
+                "invalid colour for {!r}: expected 'none' or a "
+                "#rgb/#rrggbb hex colour, got {!r}".format(key, value)
+            )
+        overrides[key] = value
+    return overrides
+
+
+def _metric_names(payload: Dict[str, Any]) -> List[str]:
+    if "metric_names" not in payload:
+        return list(METRIC_NAMES)
+
+    values = payload["metric_names"]
+    if not isinstance(values, list):
+        raise ValueError("metric_names must be a list of metric names")
+    for value in values:
+        if value not in METRIC_NAMES:
+            raise ValueError(
+                "unknown metric name {!r}; choose from {}".format(
+                    value, ", ".join(METRIC_NAMES)
+                )
+            )
+    return list(values)
 
 
 def _font_path(value: str) -> Path:
@@ -462,32 +783,57 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     layer = _string(payload, "layer") or None
     compound = _boolean(payload, "compound", False)
     metrics = _boolean(payload, "metrics", False)
+    metric_lines = _boolean(payload, "metric_lines", True)
+    metric_numbers = _boolean(payload, "metric_numbers", True)
+    metric_names = _metric_names(payload)
     apply_kerning = _boolean(payload, "apply_kerning", True)
+    colors = _colors(payload)
 
     overrides = {
         "canvas": {"frame": frame, "width": width},
         "metrics": {
             "visible": metrics,
-            "show": list(METRIC_NAMES),
+            "show": metric_names,
+            "line": {"visible": metric_lines},
+            "sidebearing_line": {"visible": metric_lines},
+            "labels": metric_numbers,
         },
     }
+    overrides.update(colors)
+    if "fill_enabled" in payload:
+        overrides["outline.fill_enabled"] = _boolean(
+            payload, "fill_enabled", False
+        )
     if shape:
         overrides["handles"] = {"point": {"shape": shape}}
         overrides["nodes"] = {
             "corner": {"shape": shape},
             "smooth": {"shape": shape},
         }
+
+    render_overrides = overrides
+    if metric_numbers and not metric_lines:
+        # The SVG renderer positions metric labels while emitting their
+        # matching rules. Generate both for the labels-only case, then remove
+        # just those metric line elements from the browser response below.
+        render_overrides = dict(overrides)
+        render_metrics = dict(overrides["metrics"])
+        render_metrics["line"] = {"visible": True}
+        render_metrics["sidebearing_line"] = {"visible": True}
+        render_overrides["metrics"] = render_metrics
     svg = blueprint(
         path,
         text,
         layer=layer,
         compound=compound,
         preset=preset,
-        overrides=overrides,
+        overrides=render_overrides,
         tracking=tracking,
         apply_kerning=apply_kerning,
         title="glyphblueprint preview",
     )
+    if not metric_lines:
+        svg = _METRIC_LINE_ELEMENT.sub("", svg)
     root = ET.fromstring(svg)
     glyphs = {
         element.get("data-glyph-index")
@@ -537,7 +883,7 @@ class PreviewHandler(BaseHTTPRequestHandler):
         if self.path in ("/", "/index.html"):
             self._send(
                 200,
-                _PAGE.encode("utf-8"),
+                _preview_page().encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
