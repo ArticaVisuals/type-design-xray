@@ -36,6 +36,7 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 glyphblueprint = "glyphblueprint.cli:main"
+glyphblueprint-preview = "glyphblueprint.web:main"
 
 [project.urls]
 Homepage = "https://github.com/micahhoang/glyphblueprint"

@@ -56,6 +56,18 @@ Smoke test — this should write an SVG and print a one-line summary:
 glyphblueprint examples/BlueprintDemo.glyphs "Vao" --out blueprint.svg
 ```
 
+### Local browser preview
+
+To test the exporter interactively without installing a separate application:
+
+```bash
+glyphblueprint-preview
+```
+
+Then open [http://127.0.0.1:8765/](http://127.0.0.1:8765/). The preview runs
+only on your computer and uses the same Python parsing, layout, compounding, and
+SVG rendering code as the command-line tool.
+
 ### Optional: PNG and PDF export
 
 SVG export needs nothing extra. PNG and PDF need a rendering backend:
