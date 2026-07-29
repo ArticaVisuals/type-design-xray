@@ -154,3 +154,25 @@ def test_sanitised_glyph_name_collisions_are_disambiguated(
         "lockup-01-a-b.svg",
         "lockup-02-a-b-2.svg",
     ]
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "CON.svg",
+        "aux.preview.svg",
+        "COM¹.svg",
+        "bad:name.svg",
+        "trailing.svg.",
+    ],
+)
+def test_explicit_output_filename_must_be_portable_to_windows(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    destination = tmp_path / filename
+
+    with pytest.raises(ValueError, match="Windows"):
+        blueprint_to_files(EXAMPLE, "A", destination)
+
+    assert not destination.exists()

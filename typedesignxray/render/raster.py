@@ -101,13 +101,20 @@ def svg_to_png(svg: Any, out_path: Any, width: Optional[int] = None) -> Path:
         return destination
 
     if resvg is not None:
-        with tempfile.NamedTemporaryFile(suffix=".svg") as source:
-            source.write(payload)
-            source.flush()
+        # NamedTemporaryFile remains open for the lifetime of its context.
+        # Windows denies a second process access to that open file, so resvg
+        # could never read its input there. A temporary directory lets us
+        # close the SVG before starting the child process while retaining
+        # automatic cleanup.
+        with tempfile.TemporaryDirectory(
+            prefix="type-design-xray-resvg-"
+        ) as temporary_directory:
+            source = Path(temporary_directory) / "source.svg"
+            source.write_bytes(payload)
             command = [resvg]
             if width is not None:
                 command.extend(["--width", str(width)])
-            command.extend([source.name, str(destination)])
+            command.extend([str(source), str(destination)])
             _run_backend(command, b"", "resvg")
         return destination
 
