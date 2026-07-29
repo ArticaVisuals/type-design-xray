@@ -289,6 +289,85 @@ def test_named_master_layer_wins_over_earlier_background_layer(
     ).is_master
 
 
+def test_selected_master_never_falls_back_to_another_layer(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "missing-master-layer.glyphs"
+    path.write_text(
+        """
+        {
+        fontMaster = ({ id = M1; name = Regular; });
+        glyphs = ({
+            glyphname = s;
+            layers = ({
+                associatedMasterId = M1;
+                layerId = BACKGROUND;
+                name = "Skeleton v1";
+                shapes = ({
+                    nodes = ((20,0,l),(200,500,l),(392,0,l));
+                });
+                width = 413;
+            });
+        });
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"master layer 'M1'.*glyph 's'",
+    ):
+        parse_glyphs(path)
+
+
+def test_requested_master_wins_regardless_of_layer_order_or_name(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "multiple-masters.glyphs"
+    path.write_text(
+        """
+        {
+        fontMaster = (
+            { id = M1; name = Regular; },
+            { id = M2; name = Bold; },
+        );
+        glyphs = ({
+            glyphname = s;
+            layers = (
+                {
+                    associatedMasterId = M1;
+                    layerId = BACKGROUND;
+                    name = Backup;
+                    shapes = ({ nodes = ((10,0,l),(100,200,l),(190,0,l)); });
+                    width = 200;
+                },
+                {
+                    layerId = M2;
+                    name = Bold;
+                    shapes = ({ nodes = ((30,0,l),(150,300,l),(270,0,l)); });
+                    width = 300;
+                },
+                {
+                    layerId = M1;
+                    name = Regular;
+                    shapes = ({ nodes = ((20,0,l),(125,250,l),(230,0,l)); });
+                    width = 250;
+                },
+            );
+        });
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    assert parse_glyphs(path).glyphs["s"].advance_width == 250
+    assert parse_glyphs(path, master="Regular").glyphs["s"].advance_width == 250
+    assert parse_glyphs(path, master="M1").glyphs["s"].advance_width == 250
+    assert parse_glyphs(path, master="Bold").glyphs["s"].advance_width == 300
+    assert parse_glyphs(path, master="M2").glyphs["s"].advance_width == 300
+
+
 def test_decimal_and_hex_unicode_forms() -> None:
     modern = parse_glyphs(FIXTURES / "synthetic_v4.glyphs")
     assert modern.glyphs["decimalZ"].unicodes == [90]

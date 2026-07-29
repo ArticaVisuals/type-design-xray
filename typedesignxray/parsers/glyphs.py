@@ -30,8 +30,6 @@ def parse_glyphs(
     selected_master = _select_master(masters, master)
     master_id = _text(selected_master.get("id"))
     master_name = _text(selected_master.get("name"))
-    master_ids = {_text(item.get("id")) for item in masters}
-    master_ids.discard("")
 
     requested_layer = None if layer in (None, "") else str(layer)
     glyph_records = _glyph_records(data)
@@ -62,7 +60,7 @@ def parse_glyphs(
         if not glyph_name:
             continue
         selected_layer = _select_layer(
-            glyph_record, requested_layer, master_id, master_ids
+            glyph_record, requested_layer, master_id
         )
         try:
             contours = _glyph_contours(
@@ -70,7 +68,6 @@ def parse_glyphs(
                 glyph_records,
                 requested_layer,
                 master_id,
-                master_ids,
                 (),
             )
         except ValueError as error:
@@ -217,7 +214,6 @@ def _select_layer(
     glyph: Dict[str, Any],
     requested: Optional[str],
     master_id: str,
-    master_ids: Iterable[str],
 ) -> Dict[str, Any]:
     layers = _dict_items(glyph.get("layers"))
     if requested is not None:
@@ -239,17 +235,18 @@ def _select_layer(
         if insensitive:
             return insensitive[0]
 
-    master_id_set = set(master_ids)
     if master_id:
         for item in layers:
             if _text(item.get("layerId")) == master_id:
                 return item
-    for item in layers:
-        if _text(item.get("layerId")) in master_id_set:
-            return item
-    for item in layers:
-        if item.get("name") in (None, ""):
-            return item
+        raise ValueError(
+            "master layer {!r} was not found for glyph {!r}".format(
+                master_id, _glyph_name(glyph) or "(unnamed)"
+            )
+        )
+
+    # A malformed source with no fontMaster records has no authoritative
+    # master ID. Preserve the legacy best effort only for that case.
     return layers[0] if layers else {}
 
 
@@ -258,7 +255,6 @@ def _glyph_contours(
     glyphs: Dict[str, Dict[str, Any]],
     requested_layer: Optional[str],
     master_id: str,
-    master_ids: Iterable[str],
     stack: Tuple[str, ...],
 ) -> List[ir.Contour]:
     if glyph_name in stack:
@@ -266,7 +262,7 @@ def _glyph_contours(
     glyph = glyphs.get(glyph_name)
     if glyph is None:
         return []
-    layer = _select_layer(glyph, requested_layer, master_id, master_ids)
+    layer = _select_layer(glyph, requested_layer, master_id)
     contours: List[ir.Contour] = []
     next_stack = stack + (glyph_name,)
     for kind, shape in _layer_shapes(layer):
@@ -281,7 +277,6 @@ def _glyph_contours(
             glyphs,
             requested_layer,
             master_id,
-            master_ids,
             next_stack,
         )
         transform = _component_transform(shape)
