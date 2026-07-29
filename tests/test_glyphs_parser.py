@@ -379,3 +379,85 @@ def test_list_layers_finds_named_open_path_layer() -> None:
     assert skeleton.associated_master_id == "m01"
     assert skeleton.contour_count == 2
     assert skeleton.has_open_contours is True
+
+
+def test_compact_node_types_are_parsed_as_letter_plus_flags() -> None:
+    """Regression: a Glyphs save introduced 'ct' and 'lt' and broke parsing.
+
+    The compact node type is a segment letter followed by flag letters. Matching
+    whole strings meant a newer Glyphs build could make an otherwise readable
+    file unparseable, so the letters are now parsed structurally. Both 's'
+    (smooth) and 't' (tangent) mark a tangent-continuous node.
+    """
+    source = """
+    {
+    .formatVersion = 3;
+    fontMaster = ({ id = M1; });
+    glyphs = (
+    {
+    glyphname = test;
+    layers = (
+    {
+    layerId = M1;
+    shapes = (
+    {
+    closed = 1;
+    nodes = (
+    (0,0,l),
+    (100,0,lt),
+    (200,0,o),
+    (300,0,o),
+    (400,0,ct),
+    (500,0,cs),
+    (600,0,o),
+    (700,0,o)
+    );
+    }
+    );
+    width = 800;
+    }
+    );
+    unicode = 65;
+    }
+    );
+    unitsPerEm = 1000;
+    }
+    """
+    path = FIXTURES.parent / "_compact_node_types.glyphs"
+    path.write_text(source)
+    try:
+        font = parse_glyphs(path)
+    finally:
+        path.unlink()
+
+    nodes = [n for c in font.glyphs["test"].contours for n in c.nodes]
+    by_x = {int(n.point[0]): n for n in nodes}
+    assert by_x[100].smooth is True, "'lt' must mark a tangent node"
+    assert by_x[400].smooth is True, "'ct' must mark a tangent node"
+    assert by_x[500].smooth is True, "'cs' must still mark a smooth node"
+    assert by_x[0].smooth is False, "plain 'l' stays a corner"
+    assert by_x[100].type == "line"
+    assert by_x[400].type == "curve"
+
+
+def test_unknown_future_node_flags_do_not_break_parsing() -> None:
+    """An unrecognised flag letter must degrade, not raise."""
+    source = """
+    {
+    .formatVersion = 3;
+    fontMaster = ({ id = M1; });
+    glyphs = ({ glyphname = test; layers = ({ layerId = M1; shapes = (
+    { closed = 1; nodes = ((0,0,l),(100,0,lz),(200,0,l)); }
+    ); width = 300; }); unicode = 65; });
+    unitsPerEm = 1000;
+    }
+    """
+    path = FIXTURES.parent / "_future_node_flag.glyphs"
+    path.write_text(source)
+    try:
+        font = parse_glyphs(path)
+    finally:
+        path.unlink()
+    nodes = [n for c in font.glyphs["test"].contours for n in c.nodes]
+    assert len(nodes) == 3
+    assert all(n.type == "line" for n in nodes)

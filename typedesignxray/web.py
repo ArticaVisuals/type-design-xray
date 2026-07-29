@@ -689,7 +689,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         <div>
           <label for="fontPath">Font path</label>
           <div class="font-source">
-            <input id="fontPath" name="font_path" type="text" value="examples/BlueprintDemo.glyphs" spellcheck="false">
+            <input id="fontPath" name="font_path" type="text" value="examples/Roboto-Regular-subset.ufo" spellcheck="false">
             <input class="file-input" id="fontFile" type="file" accept=".glyphs,.otf,.ttf,.woff,.woff2">
             <label class="file-picker" for="fontFile">Choose file…</label>
           </div>
@@ -697,7 +697,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         </div>
         <div>
           <label for="text">Text or /glyph/name</label>
-          <input id="text" name="text" type="text" value="Vao" maxlength="256">
+          <input id="text" name="text" type="text" value="Type" maxlength="256">
         </div>
         <div class="row">
           <div>
@@ -761,7 +761,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
             <label class="check"><input id="metricSidebearings" name="metric_names" type="checkbox" value="sidebearings" data-metric-control checked disabled> Side bearings</label>
           </div>
           <div class="checks">
-            <label class="check"><input id="compound" name="compound" type="checkbox"> Remove overlap</label>
+            <label class="check"><input id="compound" name="compound" type="checkbox" checked> Remove overlap</label>
             <label class="check"><input id="kerning" name="kerning" type="checkbox" checked> Apply kerning</label>
           </div>
         </fieldset>
@@ -987,7 +987,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
         <button class="download" id="downloadButton" type="button" disabled>Download SVG</button>
       </div>
       <section class="stage" aria-label="SVG preview">
-        <div id="preview"><p class="empty">Choose a font and render. The bundled <code>examples/BlueprintDemo.glyphs</code> is a good starting point &mdash; try it with overlap removal enabled.</p></div>
+        <div id="preview"><p class="empty">Choose a font and render. The bundled <code>examples/Roboto-Regular-subset.ufo</code> is a good starting point &mdash; try it with overlap removal on and off.</p></div>
       </section>
     </main>
   </div>

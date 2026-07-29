@@ -459,9 +459,17 @@ def _decode_node(raw: Any) -> _SourceNode:
     node_type = parts[2].strip().lower()
     extra = {item.strip().lower() for item in parts[3:]}
     smooth = "smooth" in extra
-    if node_type.endswith("s") and node_type in ("ls", "cs", "qs"):
-        smooth = True
-        node_type = node_type[:-1]
+
+    # The compact form is a segment letter followed by zero or more flag
+    # letters: "c", "cs" (smooth), "ct" (tangent), and whatever Glyphs adds
+    # next. Parse it structurally rather than matching whole strings, so a
+    # newer Glyphs build cannot make an otherwise-readable file unparseable.
+    # Both "s" and "t" mark a tangent-continuous node.
+    if node_type not in _LONG_NODE_TYPES and len(node_type) > 1:
+        flags = set(node_type[1:])
+        if flags & _TANGENT_FLAGS:
+            smooth = True
+        node_type = node_type[0]
 
     if node_type in ("o", "offcurve", "off-curve"):
         kind = "offcurve"
@@ -476,6 +484,16 @@ def _decode_node(raw: Any) -> _SourceNode:
             "unsupported Glyphs node type {!r}".format(parts[2])
         )
     return _SourceNode(point=point, kind=kind, smooth=smooth)
+
+
+#: Long-form node type names, which must not be treated as letter + flags.
+_LONG_NODE_TYPES = frozenset(
+    ("offcurve", "off-curve", "curve", "qcurve", "quadratic", "line")
+)
+
+#: Compact-form flag letters that mark a tangent-continuous node. "s" is the
+#: long-standing smooth flag; "t" is Glyphs' tangent node.
+_TANGENT_FLAGS = frozenset(("s", "t"))
 
 
 def _node_coordinate(value: Any, raw: Any) -> float:

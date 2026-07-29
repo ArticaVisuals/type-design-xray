@@ -1,0 +1,10 @@
+Roboto
+Copyright 2011 Google Inc. All Rights Reserved.
+Licensed under the Apache License, Version 2.0.
+https://www.apache.org/licenses/LICENSE-2.0
+
+This directory is a four-glyph excerpt (T, y, p, e) of Roboto
+Regular, taken from https://github.com/googlefonts/roboto-2
+(src/v2/Roboto-Regular.ufo) and included here purely as a
+documentation example. Outline data is unchanged; contours that
+existed only to carry anchor positions were removed.

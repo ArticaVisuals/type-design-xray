@@ -77,7 +77,7 @@ off if you don't need it — plain `pip install .` works fine.
 summary:
 
 ```bash
-.venv/bin/type-design-xray examples/BlueprintDemo.glyphs "Vao" --out blueprint.svg
+.venv/bin/type-design-xray examples/Roboto-Regular-subset.ufo "Type" --out blueprint.svg
 ```
 
 Open `blueprint.svg` in a browser, Illustrator, or Figma.
@@ -423,17 +423,43 @@ fallback in that case.
 
 ## Reproducing the examples
 
-Everything above is generated from
-[`examples/BlueprintDemo.glyphs`](examples/BlueprintDemo.glyphs), a small
-public-domain demo font included in this repo. It deliberately exercises the
-awkward cases: an open `Skeleton v1` centreline layer, contours whose handles
-wrap around the start of the point list, flat pair kerning, group kerning, and
-an explicit zero-value pair that has to override a group kern.
+Two fonts ship in [`examples/`](examples/), and between them they cover
+everything shown above.
+
+**[`Roboto-Regular-subset.ufo`](examples/Roboto-Regular-subset.ufo)** — the
+letterforms in most of the images. A four-glyph excerpt (`T y p e`) of Roboto
+Regular, taken from its own UFO sources. Roboto's sources keep the overlapping
+construction a designer draws: `T` really is a stem rectangle crossed by a bar,
+and `y` is two overlapping strokes. That is what makes it a good subject for
+`--compound` — the shipped Roboto TTF has already had those merged, so the
+source is the interesting artefact. It also carries authored smooth/corner node
+data, which a compiled font cannot.
 
 ```bash
-type-design-xray examples/BlueprintDemo.glyphs "Vao" \
+type-design-xray examples/Roboto-Regular-subset.ufo "Type" --compound \
   --metrics baseline,xheight,capheight,sidebearings --out examples/output/hero.svg
 ```
+
+**[`BlueprintDemo.glyphs`](examples/BlueprintDemo.glyphs)** — a small
+public-domain font written for this project, used for the features Roboto's
+excerpt cannot show. It deliberately exercises the awkward cases: an open
+`Skeleton v1` centreline layer, contours whose handles wrap around the start of
+the point list, flat pair kerning, group kerning, and an explicit zero-value
+pair that has to override a group kern.
+
+```bash
+type-design-xray examples/BlueprintDemo.glyphs "a" --layer "Skeleton v1" \
+  --out examples/output/skeleton-layer.svg
+```
+
+### Roboto attribution
+
+Roboto is Copyright 2011 Google Inc., licensed under the
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0). The excerpt
+here is redistributed with its outline data unchanged — only contours that
+existed solely to carry anchor positions were removed — under the terms of that
+licence. See [`examples/Roboto-Regular-subset.ufo/NOTICE.txt`](examples/Roboto-Regular-subset.ufo/NOTICE.txt).
+Type Design X-Ray itself is MIT; the bundled excerpt keeps its own licence.
 
 ## Development
 
