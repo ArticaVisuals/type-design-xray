@@ -39,9 +39,9 @@ animated.
 You need **Python 3.9 or newer**. Every command below comes in two versions —
 use the one for your system.
 
-> **PowerShell:** the semicolons at the end of the Windows commands are
-> intentional separators. You may paste a whole Windows code block at once,
-> but do not join commands after removing the semicolons.
+> **PowerShell:** run each command on its own line. Do not join two commands
+> into one line; PowerShell may otherwise treat the second command as an
+> argument to the first.
 
 **Step 1 — download the project.**
 
@@ -55,8 +55,8 @@ cd type-design-xray
 Windows (PowerShell):
 
 ```powershell
-git clone https://github.com/ArticaVisuals/type-design-xray;
-Set-Location .\type-design-xray;
+git clone https://github.com/ArticaVisuals/type-design-xray
+Set-Location .\type-design-xray
 ```
 
 No `git`? Download the ZIP from the green **Code** button on GitHub, unzip it,
@@ -75,7 +75,7 @@ python3 -m venv .venv
 Windows (PowerShell):
 
 ```powershell
-py -3 -m venv .venv;
+py -3 -m venv .venv
 ```
 
 If `py` is unavailable but `python --version` reports Python 3.9 or newer, use
@@ -93,8 +93,8 @@ macOS / Linux:
 Windows (PowerShell):
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install --upgrade pip;
-.\.venv\Scripts\python.exe -m pip install -e ".[compound]";
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[compound]"
 ```
 
 The `[compound]` part adds overlap removal (the `--compound` option). Leave it
@@ -114,7 +114,7 @@ macOS / Linux:
 Windows (PowerShell):
 
 ```powershell
-.\.venv\Scripts\type-design-xray.exe examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg;
+.\.venv\Scripts\type-design-xray.exe examples\Roboto-Regular-subset.ufo "Type" --out blueprint.svg
 ```
 
 Open `blueprint.svg` in a browser, Illustrator, or Figma.
@@ -127,8 +127,8 @@ at the prompt looks like `cd type-design-xraypy -3 -m venv .venv`, cancel it
 and run these two commands separately:
 
 ```powershell
-Set-Location .\type-design-xray;
-py -3 -m venv .venv;
+Set-Location .\type-design-xray
+py -3 -m venv .venv
 ```
 
 If your prompt already ends in `type-design-xray>`, you are already in the
@@ -150,6 +150,20 @@ create the environment. Scroll up and check it succeeded before continuing.
 
 **`'type-design-xray' is not recognized`** — you are missing the `.venv/bin/`
 (or `.\.venv\Scripts\`) prefix, or the environment is not activated. See below.
+
+**`Activate.ps1 cannot be loaded because running scripts is disabled`** — do
+not activate the environment. Activation is optional, and the full Windows
+commands work without changing PowerShell's execution policy. From the project
+folder, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade -e ".[compound]"
+.\.venv\Scripts\type-design-xray-preview.exe
+```
+
+The prefix must be `.\.venv` (dot, backslash, dot, `venv`), not `..venv`.
+If the error path contains `type-design-xray.venv`, the backslash between the
+project folder and `.venv` was omitted.
 
 ### Updating an existing installation
 
@@ -191,11 +205,13 @@ If you downloaded a ZIP instead of cloning with Git, `git pull` will not work.
 Download the newest ZIP from GitHub into a new folder, then repeat setup steps
 2 and 3 there.
 
-### Activating it in later sessions
+### Optional activation in later sessions
 
 The `.venv/bin/` and `.\.venv\Scripts\` prefixes always work and need no
 activation. If you would rather type just `type-design-xray` (or the short alias
-`tdxray`), activate the environment first.
+`tdxray`), activate the environment first. On Windows, using the full
+`.\.venv\Scripts\...` commands is recommended because it avoids PowerShell
+execution-policy errors entirely.
 
 macOS / Linux:
 
@@ -203,16 +219,10 @@ macOS / Linux:
 source .venv/bin/activate
 ```
 
-Windows (PowerShell):
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
 Then `type-design-xray --version` works directly. Run `deactivate` to leave.
-You will need to activate again in each new terminal. If PowerShell blocks
-`Activate.ps1`, activation is optional: use the full `.\.venv\Scripts\...`
-commands from steps 3 and 4 instead.
+You will need to activate again in each new terminal. Windows users do not
+need to activate: use the full `.\.venv\Scripts\...` commands from steps 3
+and 4 instead.
 
 ### Local browser preview
 
