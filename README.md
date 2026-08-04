@@ -165,6 +165,13 @@ The prefix must be `.\.venv` (dot, backslash, dot, `venv`), not `..venv`.
 If the error path contains `type-design-xray.venv`, the backslash between the
 project folder and `.venv` was omitted.
 
+**`Cannot find path 'C:\path\to\type-design-xray'`** — `C:\path\to\...` was
+a placeholder in an older version of these instructions, not a folder that
+exists on your computer. Clone locations differ between users, so do not type
+someone else's drive letter, username, or folder path. Use the File Explorer
+steps in the update section below to open PowerShell in your own project
+folder.
+
 ### Updating an existing installation
 
 Stop a running preview with **Ctrl-C** before updating. If you cloned the
@@ -180,20 +187,27 @@ git pull --ff-only origin main
 .venv/bin/type-design-xray-preview
 ```
 
-Windows (PowerShell):
+Windows (PowerShell): first open the project folder in **File Explorer**. It is
+the folder containing `README.md`, `pyproject.toml`, and `.venv`. Click the File
+Explorer address bar, type `powershell`, and press **Enter**. This opens
+PowerShell in that exact folder without requiring you to know or copy its full
+path. Then run:
 
 ```powershell
-Set-Location "C:\path\to\type-design-xray"
+Test-Path .\pyproject.toml
 git switch main
 git pull --ff-only origin main
 .\.venv\Scripts\python.exe -m pip install --upgrade -e ".[compound]"
 .\.venv\Scripts\type-design-xray-preview.exe
 ```
 
-Run the PowerShell commands one line at a time. Replace the example path in
-the first line with the folder where you cloned the project. After the preview
-restarts, reopen its printed localhost address and hard-refresh the browser
-with **Ctrl-F5** on Windows or **Command-Shift-R** on macOS.
+Run the PowerShell commands one line at a time. The first command must print
+`True`; if it prints `False`, stop because PowerShell is not open in the project
+folder. If your prompt was already open in the folder containing
+`pyproject.toml`, you can use that window and do not need the File Explorer
+step. After the preview restarts, reopen its printed localhost address and
+hard-refresh the browser with **Ctrl-F5** on Windows or **Command-Shift-R** on
+macOS.
 
 The install command above is important for older checkouts that were installed
 as a fixed copy. Once the editable install is in place, future code-only
