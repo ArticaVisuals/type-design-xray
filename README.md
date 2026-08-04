@@ -87,18 +87,20 @@ macOS / Linux:
 
 ```bash
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install ".[compound]"
+.venv/bin/python -m pip install -e ".[compound]"
 ```
 
 Windows (PowerShell):
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install --upgrade pip;
-.\.venv\Scripts\python.exe -m pip install ".[compound]";
+.\.venv\Scripts\python.exe -m pip install -e ".[compound]";
 ```
 
 The `[compound]` part adds overlap removal (the `--compound` option). Leave it
-off if you don't need it by replacing `".[compound]"` with `"."`.
+off if you don't need it by replacing `".[compound]"` with `"."`. The `-e`
+keeps the virtual environment connected to this checkout, so pulling a newer
+version updates the code used by the preview after you restart it.
 
 **Step 4 — check it works.** This should write an SVG and print a one-line
 summary.
@@ -148,6 +150,46 @@ create the environment. Scroll up and check it succeeded before continuing.
 
 **`'type-design-xray' is not recognized`** — you are missing the `.venv/bin/`
 (or `.\.venv\Scripts\`) prefix, or the environment is not activated. See below.
+
+### Updating an existing installation
+
+Stop a running preview with **Ctrl-C** before updating. If you cloned the
+project with Git, run the commands for your system from inside the project
+folder.
+
+macOS / Linux:
+
+```bash
+git switch main
+git pull --ff-only origin main
+.venv/bin/python -m pip install --upgrade -e ".[compound]"
+.venv/bin/type-design-xray-preview
+```
+
+Windows (PowerShell):
+
+```powershell
+Set-Location "C:\path\to\type-design-xray"
+git switch main
+git pull --ff-only origin main
+.\.venv\Scripts\python.exe -m pip install --upgrade -e ".[compound]"
+.\.venv\Scripts\type-design-xray-preview.exe
+```
+
+Run the PowerShell commands one line at a time. Replace the example path in
+the first line with the folder where you cloned the project. After the preview
+restarts, reopen its printed localhost address and hard-refresh the browser
+with **Ctrl-F5** on Windows or **Command-Shift-R** on macOS.
+
+The install command above is important for older checkouts that were installed
+as a fixed copy. Once the editable install is in place, future code-only
+updates need only `git pull --ff-only origin main` followed by a preview
+restart; rerunning the install command is safe and also picks up dependency or
+command-line entry-point changes.
+
+If you downloaded a ZIP instead of cloning with Git, `git pull` will not work.
+Download the newest ZIP from GitHub into a new folder, then repeat setup steps
+2 and 3 there.
 
 ### Activating it in later sessions
 
