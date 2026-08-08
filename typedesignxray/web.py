@@ -16,6 +16,7 @@ import socket
 import sys
 import tempfile
 import threading
+import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -2494,6 +2495,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="print the preview URL without opening a browser",
+    )
     return parser
 
 
@@ -2552,12 +2558,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         return 2
     host, port = server.server_address[:2]
-    print(
-        "Type Design X-Ray preview: http://{}:{}/".format(
-            _url_host(host), port
-        ),
-        flush=True,
-    )
+    url = "http://{}:{}/".format(_url_host(host), port)
+    print("Type Design X-Ray preview: {}".format(url), flush=True)
+    if not args.no_open:
+        try:
+            opened = webbrowser.open(url, new=2)
+        except (OSError, webbrowser.Error):
+            opened = False
+        if not opened:
+            print(
+                "The browser did not open automatically. Open the preview "
+                "URL printed above.",
+                file=sys.stderr,
+                flush=True,
+            )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

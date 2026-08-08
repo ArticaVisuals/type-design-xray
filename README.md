@@ -205,9 +205,11 @@ Run the PowerShell commands one line at a time. The first command must print
 `True`; if it prints `False`, stop because PowerShell is not open in the project
 folder. If your prompt was already open in the folder containing
 `pyproject.toml`, you can use that window and do not need the File Explorer
-step. After the preview restarts, reopen its printed localhost address and
-hard-refresh the browser with **Ctrl-F5** on Windows or **Command-Shift-R** on
-macOS.
+step. After the preview restarts, it opens the correct localhost address in
+your default browser automatically. If it cannot open a browser, copy the exact
+address printed in the terminal instead of reusing an older localhost tab.
+Hard-refresh with **Ctrl-F5** on Windows or **Command-Shift-R** on macOS if the
+old page is still visible.
 
 The install command above is important for older checkouts that were installed
 as a fixed copy. Once the editable install is in place, future code-only
@@ -254,9 +256,13 @@ Windows (PowerShell):
 .\.venv\Scripts\type-design-xray-preview.exe
 ```
 
-Then open **[http://127.0.0.1:8765/](http://127.0.0.1:8765/)** in your browser
-and choose a font file. Everything stays on your own computer: the server binds
-to localhost only, and nothing is sent over the internet. (Choosing a file with
+The command prints its exact localhost address and opens that address in your
+default browser automatically. The default is
+**[http://127.0.0.1:8765/](http://127.0.0.1:8765/)**. If the browser does not
+open, copy the address printed after `Type Design X-Ray preview:`; do not reuse
+an older tab that may point to a different port. Choose a font file once the
+page opens. Everything stays on your own computer: the server binds to
+localhost only, and nothing is sent over the internet. (Choosing a file with
 the picker copies it to a temporary folder on your machine, which is deleted
 when you stop the server.) It uses the same Python parsing, layout, compounding
 and SVG rendering code as the command-line tool, so what you see is what the
@@ -298,7 +304,9 @@ It gives you, live:
   overlap and kerning. The preview updates after every change; use the primary
   **Export SVG** button at the bottom when it is ready.
 
-Use `--port` if 8765 is taken.
+Use `--port` if 8765 is taken; the browser opens the selected port. Use
+`--no-open` when you want the command to print the URL without launching a
+browser, such as in a headless or automated environment.
 
 ### Windows export notes
 

@@ -1392,6 +1392,79 @@ def test_preview_reports_a_busy_port_without_a_traceback(
     assert "Traceback" not in err
 
 
+def test_preview_opens_the_actual_server_url_by_default(capsys, monkeypatch):
+    import typedesignxray.web as web
+
+    events = []
+
+    class FakeServer:
+        server_address = ("127.0.0.1", 43123)
+
+        def serve_forever(self):
+            events.append("served")
+
+        def server_close(self):
+            events.append("closed")
+
+    monkeypatch.setattr(web, "create_server", lambda host, port: FakeServer())
+    monkeypatch.setattr(
+        web.webbrowser,
+        "open",
+        lambda url, new=0: events.append((url, new)) or True,
+    )
+
+    assert main(["--port", "0"]) == 0
+    assert events == [
+        ("http://127.0.0.1:43123/", 2),
+        "served",
+        "closed",
+    ]
+    assert "http://127.0.0.1:43123/" in capsys.readouterr().out
+
+
+def test_preview_no_open_option_keeps_browser_closed(monkeypatch):
+    import typedesignxray.web as web
+
+    class FakeServer:
+        server_address = ("127.0.0.1", 8765)
+
+        def serve_forever(self):
+            return None
+
+        def server_close(self):
+            return None
+
+    monkeypatch.setattr(web, "create_server", lambda host, port: FakeServer())
+
+    def unexpected_browser_open(*args, **kwargs):
+        pytest.fail("--no-open must not launch a browser")
+
+    monkeypatch.setattr(web.webbrowser, "open", unexpected_browser_open)
+
+    assert main(["--no-open"]) == 0
+
+
+def test_preview_explains_when_browser_cannot_open(capsys, monkeypatch):
+    import typedesignxray.web as web
+
+    class FakeServer:
+        server_address = ("127.0.0.1", 8765)
+
+        def serve_forever(self):
+            return None
+
+        def server_close(self):
+            return None
+
+    monkeypatch.setattr(web, "create_server", lambda host, port: FakeServer())
+    monkeypatch.setattr(web.webbrowser, "open", lambda url, new=0: False)
+
+    assert main([]) == 0
+    captured = capsys.readouterr()
+    assert "http://127.0.0.1:8765/" in captured.out
+    assert "did not open automatically" in captured.err
+
+
 def test_preview_recognises_windows_busy_port_error(
     capsys, monkeypatch
 ) -> None:
