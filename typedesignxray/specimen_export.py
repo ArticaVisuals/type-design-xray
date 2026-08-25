@@ -39,6 +39,9 @@ from .specimen import (
 
 FRAME_WIDTH = 1080
 FRAME_HEIGHT = 766
+ANIMATION_SCALE = 2
+ANIMATION_WIDTH = FRAME_WIDTH * ANIMATION_SCALE
+ANIMATION_HEIGHT = FRAME_HEIGHT * ANIMATION_SCALE
 _CONTENT_TYPES = {
     "gif": "image/gif",
     "mp4": "video/mp4",
@@ -459,7 +462,7 @@ def export_specimen(
             )
             frame_path = temporary / "frame-{:06d}.png".format(index)
             try:
-                svg_to_png(svg, frame_path, width=FRAME_WIDTH)
+                svg_to_png(svg, frame_path, width=ANIMATION_WIDTH)
             except Exception as exc:
                 raise SpecimenExportError(
                     "Unable to rasterize specimen frames: {}".format(exc)
@@ -496,6 +499,8 @@ def export_specimen(
         "end_frame": selected_end,
         "point_size": float(point_size),
         "fps": numeric_fps,
+        "width": ANIMATION_WIDTH,
+        "height": ANIMATION_HEIGHT,
         "xray": xray,
         "colors": palette,
     }
@@ -574,6 +579,8 @@ def export_frame(
         "start_frame": selected_start,
         "end_frame": selected_start,
         "point_size": float(point_size),
+        "width": FRAME_WIDTH,
+        "height": FRAME_HEIGHT,
         "xray": xray,
         "colors": palette,
     }
@@ -629,6 +636,9 @@ def export_request(
 __all__ = [
     "FRAME_WIDTH",
     "FRAME_HEIGHT",
+    "ANIMATION_SCALE",
+    "ANIMATION_WIDTH",
+    "ANIMATION_HEIGHT",
     "SpecimenExportError",
     "designed_glyph_names",
     "designed_sequence",
