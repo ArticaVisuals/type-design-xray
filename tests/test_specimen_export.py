@@ -131,7 +131,7 @@ def test_export_loads_only_selected_master_and_returns_route_metadata(
         return _font()
 
     def fake_svg_to_png(svg: str, output: Path, width: int) -> Path:
-        assert width == 1080
+        assert width == 2160
         assert 'width="1080" height="766"' in svg
         output.write_bytes(b"png")
         return output
@@ -189,6 +189,8 @@ def test_export_loads_only_selected_master_and_returns_route_metadata(
         "end_frame": 2,
         "point_size": 370.0,
         "fps": 8.0,
+        "width": 2160,
+        "height": 1532,
         "xray": True,
         "colors": {
             "background": "#000000",
@@ -243,6 +245,8 @@ def test_export_frame_writes_selected_svg_with_palette_and_compounding(
     assert 'fill="#ddeeff"' in svg
     assert 'stroke="#ff00aa"' in svg
     assert result["format"] == "svg"
+    assert result["width"] == 1080
+    assert result["height"] == 766
     assert result["start_frame"] == result["end_frame"] == 2
     assert result["total_frame_count"] == 2
     assert result["glyph_count"] == 1
@@ -264,7 +268,7 @@ def test_animation_export_accepts_an_inclusive_frame_range(
     monkeypatch.setattr(
         specimen_export,
         "svg_to_png",
-        lambda svg, output, width: seen_frames.append(svg)
+        lambda svg, output, width: seen_frames.append((svg, width))
         or output.write_bytes(b"png")
         or output,
     )
@@ -285,8 +289,11 @@ def test_animation_export_accepts_an_inclusive_frame_range(
     )
 
     assert len(seen_frames) == 1
-    assert 'data-left="star"' in seen_frames[0]
+    assert 'data-left="star"' in seen_frames[0][0]
+    assert seen_frames[0][1] == 2160
     assert result["frame_count"] == 1
+    assert result["width"] == 2160
+    assert result["height"] == 1532
     assert result["total_frame_count"] == 2
     assert result["start_frame"] == result["end_frame"] == 2
 

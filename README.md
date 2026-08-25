@@ -325,8 +325,9 @@ metric guides, handle lines, and point fill/stroke independently. **Frame SVG**
 and **Frame PNG** export the currently selected two-up frame. The inclusive
 **From** and **To** fields choose a frame range for **Export GIF** and
 **Export MP4**; **Use Current** sets both ends to the visible frame. Leaving the
-range at its initial values produces a 1080×766 animation that covers the full
-exhaustive sequence.
+range at its initial values produces a 2160×1532 animation—2× the player
+canvas—that covers the full exhaustive sequence. Frame SVG and PNG exports
+remain 1080×766.
 
 The solid player and frame SVG export work with the base installation. The
 Bézier toggle needs the `compound` extra from setup step 3. Frame PNG and
