@@ -4,8 +4,13 @@ from pathlib import Path
 
 import pytest
 
+from typedesignxray import MasterInfo, list_font_masters
 from typedesignxray.parsers import plist
-from typedesignxray.parsers.glyphs import list_layers, parse_glyphs
+from typedesignxray.parsers.glyphs import (
+    list_layers,
+    list_masters,
+    parse_glyphs,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -366,6 +371,89 @@ def test_requested_master_wins_regardless_of_layer_order_or_name(
     assert parse_glyphs(path, master="M1").glyphs["s"].advance_width == 250
     assert parse_glyphs(path, master="Bold").glyphs["s"].advance_width == 300
     assert parse_glyphs(path, master="M2").glyphs["s"].advance_width == 300
+
+
+def test_authored_glyph_metadata_and_missing_defaults(tmp_path: Path) -> None:
+    path = tmp_path / "glyph-metadata.glyphs"
+    path.write_text(
+        """
+        {
+        fontMaster = ({ id = M1; name = Regular; });
+        glyphs = (
+            {
+                category = Letter;
+                glyphname = A;
+                layers = ({ layerId = M1; width = 600; });
+                script = latin;
+                subCategory = Uppercase;
+                unicode = 65;
+            },
+            {
+                category = "";
+                glyphname = alternate;
+                layers = ({ layerId = M1; width = 600; });
+                script = "";
+                subCategory = "";
+            },
+            {
+                glyphname = unclassified;
+                layers = ({ layerId = M1; width = 600; });
+            },
+        );
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    font = parse_glyphs(path)
+    classified = font.glyphs["A"]
+    assert classified.category == "Letter"
+    assert classified.subcategory == "Uppercase"
+    assert classified.script == "latin"
+
+    for glyph_name in ("alternate", "unclassified"):
+        glyph = font.glyphs[glyph_name]
+        assert glyph.category is None
+        assert glyph.subcategory is None
+        assert glyph.script is None
+
+
+def test_list_masters_exposes_ids_and_style_names(tmp_path: Path) -> None:
+    path = tmp_path / "masters.glyphs"
+    path.write_text(
+        """
+        {
+        fontMaster = (
+            { id = M1; name = Regular; },
+            { id = M2; name = "Display Bold"; },
+        );
+        glyphs = ();
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    expected = [
+        MasterInfo(master_id="M1", name="Regular"),
+        MasterInfo(master_id="M2", name="Display Bold"),
+    ]
+    assert list_masters(path) == expected
+    assert list_font_masters(path) == expected
+
+
+def test_list_masters_defaults_missing_fields_to_empty_strings(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "unnamed-master.glyphs"
+    path.write_text(
+        "{ fontMaster = ({}, { id = M2; }); glyphs = (); }",
+        encoding="utf-8",
+    )
+
+    assert list_masters(path) == [
+        MasterInfo(master_id="", name=""),
+        MasterInfo(master_id="M2", name=""),
+    ]
 
 
 def test_decimal_and_hex_unicode_forms() -> None:

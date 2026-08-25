@@ -304,6 +304,75 @@ It gives you, live:
   overlap and kerning. The preview updates after every change; use the primary
   **Export SVG** button at the bottom when it is ready.
 
+### Specimen Player and GIF/MP4 export
+
+The same localhost server also includes a focused two-up specimen player at
+**[http://127.0.0.1:8765/specimen](http://127.0.0.1:8765/specimen)**. Open it
+from the link in the main preview, import a `.glyphs` source, and choose the
+master/style. Playback and media export always use that master's actual master
+layer; backup, Skeleton, and other named layers are never substituted.
+
+The player pairs uppercase/lowercase counterparts first, then walks every
+remaining glyph with drawable master-layer geometry exactly once. Intentionally
+blank glyphs such as `space` are omitted. Controls provide previous/next,
+play/pause, pair selection, point size, speed, and a Bézier toggle that switches
+between solid specimens and export-style compounded outlines, resulting nodes,
+off-curve points, and handle lines. Compounding removes overlapping shapes in
+the selected master before the X-Ray geometry is drawn.
+
+Open **Colors** to set the background, fill, outline stroke, metadata text,
+metric guides, handle lines, and point fill/stroke independently. **Frame SVG**
+and **Frame PNG** export the currently selected two-up frame. The inclusive
+**From** and **To** fields choose a frame range for **Export GIF** and
+**Export MP4**; **Use Current** sets both ends to the visible frame. Leaving the
+range at its initial values produces a 1080×766 animation that covers the full
+exhaustive sequence.
+
+The solid player and frame SVG export work with the base installation. The
+Bézier toggle needs the `compound` extra from setup step 3. Frame PNG and
+animated GIF/MP4 export need an SVG raster backend; GIF/MP4 additionally need
+FFmpeg.
+
+macOS:
+
+```bash
+brew install cairo ffmpeg
+.venv/bin/python -m pip install -e ".[compound,raster]"
+```
+
+Ubuntu/Debian Linux:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg libcairo2
+.venv/bin/python -m pip install -e ".[compound,raster]"
+```
+
+Windows: keep the `.[compound]` installation from setup step 3, then install
+[FFmpeg from a build linked by the official download page](https://ffmpeg.org/download.html#build-windows)
+and download the working
+[resvg v0.47 Windows binary](https://github.com/linebender/resvg/releases/download/v0.47.0/resvg-win64.zip).
+Add both executable folders to `PATH`, open a new PowerShell window in the
+project folder, and confirm both commands work:
+
+```powershell
+ffmpeg -version
+resvg --help
+```
+
+The player reports a direct setup error when an export dependency is missing.
+SVG frame export does not require FFmpeg or a raster backend.
+
+#### 30-second public test
+
+After setup, start `type-design-xray-preview` with the command from **Local
+browser preview** above. Click **Open Specimen Player**, then **Import
+.glyphs** and choose the bundled `examples/BlueprintDemo.glyphs` file from
+this project. The player should show the `A / a` pair immediately. Turn on
+**Bézier**, change a color, click **Use Current**, and try **Frame SVG**. If the
+media dependencies above are installed, **Frame PNG**, **Export GIF**, and
+**Export MP4** should download too. This test needs no private font files.
+
 Use `--port` if 8765 is taken; the browser opens the selected port. Use
 `--no-open` when you want the command to print the URL without launching a
 browser, such as in a headless or automated environment.

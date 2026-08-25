@@ -27,6 +27,12 @@ from fontTools.ttLib import TTCollection, TTFont
 
 from .api import blueprint
 from .config import available_presets, resolve_style
+from .specimen import (
+    catalog_request as specimen_catalog_request,
+    render_request as specimen_render_request,
+    specimen_page,
+)
+from .specimen_export import export_request as specimen_export_request
 from .style import FRAME_MODES, METRIC_NAMES, SHAPES
 
 
@@ -47,6 +53,14 @@ _UPLOAD_DIRECTORY = Path(
     tempfile.mkdtemp(prefix="type-design-xray-uploads-")
 ).resolve()
 atexit.register(shutil.rmtree, str(_UPLOAD_DIRECTORY), ignore_errors=True)
+_SPECIMEN_EXPORT_DIRECTORY = Path(
+    tempfile.mkdtemp(prefix="type-design-xray-specimen-exports-")
+).resolve()
+atexit.register(
+    shutil.rmtree,
+    str(_SPECIMEN_EXPORT_DIRECTORY),
+    ignore_errors=True,
+)
 _COLOR_PATHS = (
     "canvas.background",
     "outline.stroke",
@@ -265,6 +279,15 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       font-size: .9rem;
       line-height: 1.45;
     }
+    .specimen-link {
+      display: inline-flex;
+      margin: -.55rem 0 1.35rem;
+      color: #9dccff;
+      font-size: .82rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .specimen-link:hover { color: #d6ebff; text-decoration: underline; }
     form { display: grid; gap: 1rem; }
     label, legend {
       display: block;
@@ -729,6 +752,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     <aside>
       <h1>Type Design X-Ray</h1>
       <p class="lede">Local end-to-end preview. Every render is generated from the selected font by the Python exporter.</p>
+      <a class="specimen-link" href="/specimen">Open Specimen Player &rarr;</a>
       <form id="controls">
         <div>
           <label for="fontPath">Font path</label>
@@ -2363,13 +2387,19 @@ class PreviewHandler(BaseHTTPRequestHandler):
     server_version = "type-design-xray-preview/1.0"
 
     def _send(
-        self, status: int, payload: bytes, content_type: str
+        self,
+        status: int,
+        payload: bytes,
+        content_type: str,
+        headers: Optional[Dict[str, str]] = None,
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(payload)
 
@@ -2377,11 +2407,26 @@ class PreviewHandler(BaseHTTPRequestHandler):
         payload = json.dumps(data).encode("utf-8")
         self._send(status, payload, "application/json; charset=utf-8")
 
+    def _require_json_content_type(self) -> bool:
+        content_type = self.headers.get("Content-Type", "")
+        media_type = content_type.split(";", 1)[0].strip().lower()
+        if media_type != "application/json":
+            self._json(415, {"error": "Content-Type must be application/json"})
+            return False
+        return True
+
     def do_GET(self) -> None:
         if self.path in ("/", "/index.html"):
             self._send(
                 200,
                 _preview_page().encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
+        if self.path in ("/specimen", "/specimen/"):
+            self._send(
+                200,
+                specimen_page().encode("utf-8"),
                 "text/html; charset=utf-8",
             )
             return
@@ -2400,8 +2445,19 @@ class PreviewHandler(BaseHTTPRequestHandler):
         if self.path == "/api/upload":
             self._upload_font()
             return
-        if self.path != "/api/render":
+        if self.path == "/api/specimen/export":
+            self._export_specimen()
+            return
+        request_handlers = {
+            "/api/render": render_request,
+            "/api/specimen/catalog": specimen_catalog_request,
+            "/api/specimen/render": specimen_render_request,
+        }
+        request_handler = request_handlers.get(self.path)
+        if request_handler is None:
             self._json(404, {"error": "not found"})
+            return
+        if not self._require_json_content_type():
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -2413,7 +2469,7 @@ class PreviewHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            result = render_request(payload)
+            result = request_handler(payload)
         except (UnicodeError, json.JSONDecodeError) as exc:
             self._json(400, {"error": "invalid JSON: {}".format(exc)})
             return
@@ -2421,6 +2477,48 @@ class PreviewHandler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(exc)})
             return
         self._json(200, result)
+
+    def _export_specimen(self) -> None:
+        if not self._require_json_content_type():
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._json(400, {"error": "invalid Content-Length"})
+            return
+        if length <= 0 or length > _MAX_REQUEST_BYTES:
+            self._json(413, {"error": "request body is empty or too large"})
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            result = specimen_export_request(
+                payload,
+                output_dir=_SPECIMEN_EXPORT_DIRECTORY,
+            )
+            destination = Path(result["path"])
+            content = destination.read_bytes()
+            safe_name = re.sub(
+                r"[^A-Za-z0-9_.-]+",
+                "-",
+                str(result["name"]),
+            ).strip(".-") or "specimen.{}".format(result["format"])
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            self._json(400, {"error": "invalid JSON: {}".format(exc)})
+            return
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            RuntimeError,
+        ) as exc:
+            self._json(400, {"error": str(exc)})
+            return
+        self._send(
+            200,
+            content,
+            str(result["content_type"]),
+            {"Content-Disposition": 'attachment; filename="{}"'.format(safe_name)},
+        )
 
     def _upload_font(self) -> None:
         content_type = self.headers.get("Content-Type", "")

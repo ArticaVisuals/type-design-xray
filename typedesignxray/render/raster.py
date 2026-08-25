@@ -3,14 +3,29 @@
 from __future__ import annotations
 
 import importlib
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, List, Optional
 
 
 def _load_cairosvg() -> Any:
+    # Homebrew keeps Cairo keg paths outside the default macOS dynamic-library
+    # search path. Configure the fallback before cairocffi's first import so an
+    # already-installed `brew install cairo` works without shell setup.
+    if sys.platform == "darwin":
+        candidates = (
+            Path("/opt/homebrew/opt/cairo/lib"),
+            Path("/usr/local/opt/cairo/lib"),
+        )
+        available = [str(path) for path in candidates if path.is_dir()]
+        if available:
+            current = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+            entries = available + ([current] if current else [])
+            os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = os.pathsep.join(entries)
     try:
         return importlib.import_module("cairosvg")
     except Exception:

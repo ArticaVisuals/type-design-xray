@@ -11,12 +11,13 @@ from .ir import (
     Glyph,
     LayerInfo,
     Layout,
+    MasterInfo,
     Metrics,
     Node,
     PositionedGlyph,
 )
 from .style import Style
-from .api import blueprint, blueprint_to_files, load_font
+from .api import blueprint, blueprint_to_files, list_font_masters, load_font
 
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "blueprint",
     "blueprint_to_files",
     "load_font",
+    "list_font_masters",
     "Style",
     "Node",
     "Contour",
@@ -33,4 +35,5 @@ __all__ = [
     "Layout",
     "Font",
     "LayerInfo",
+    "MasterInfo",
 ]

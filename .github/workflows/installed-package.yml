@@ -56,6 +56,7 @@ jobs:
         run: |
           python -m pip check
           python -I -c "from importlib.metadata import version; import typedesignxray; from typedesignxray.config import available_presets; assert typedesignxray.__version__ == version('type-design-xray') == '1.0.0'; assert available_presets() == ['blueprint', 'contrast', 'drafting', 'light']"
+          python -I -c "from pathlib import Path; from typedesignxray.specimen import catalog_request, render_request, specimen_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source)}); assert catalog['sequence'][0]['label'] == 'A / a'; rendered = render_request({'font_path': str(source), 'glyphs': ['A', 'a'], 'mode': 'xray'}); assert rendered['compounded'] and len(rendered['renders']) == 2 and 'Specimen Player' in specimen_page()"
 
       - name: Smoke-test installed commands
         run: |
@@ -75,6 +76,36 @@ jobs:
           .documented-venv/bin/python -m pip install ".[compound]"
           .documented-venv/bin/type-design-xray examples/Roboto-Regular-subset.ufo "Type" --quiet --out "$RUNNER_TEMP/documented-setup.svg"
           test -s "$RUNNER_TEMP/documented-setup.svg"
+
+      - name: Install macOS specimen media dependencies
+        if: runner.os == 'macOS' && matrix.python-version == '3.9'
+        shell: bash
+        run: |
+          brew list cairo >/dev/null 2>&1 || brew install cairo
+          brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+          python -m pip install "cairosvg>=2.7"
+
+      - name: Smoke-test specimen PNG, GIF, and MP4 export
+        if: runner.os == 'macOS' && matrix.python-version == '3.9'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from typedesignxray.specimen_export import export_frame, export_specimen
+
+          source = Path("examples/BlueprintDemo.glyphs").resolve()
+          output = Path(os.environ["RUNNER_TEMP"])
+          png = output / "specimen-frame.png"
+          gif = output / "specimen.gif"
+          mp4 = output / "specimen.mp4"
+          export_frame(source, png, frame_number=1, format_name="png", xray=True)
+          export_specimen(source, gif, format_name="gif", start_frame=1, end_frame=1, xray=True)
+          export_specimen(source, mp4, format_name="mp4", start_frame=1, end_frame=1, xray=True)
+          assert png.read_bytes().startswith(b"\x89PNG")
+          assert gif.read_bytes().startswith(b"GIF89a")
+          assert mp4.stat().st_size > 100
+          PY
 
       - name: Verify documented Windows PowerShell setup
         if: runner.os == 'Windows' && matrix.python-version == '3.14'
