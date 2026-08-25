@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from . import ir
 from .config import resolve_style
 from .layout import layout_string
-from .parsers import load_font
+from .parsers import list_font_masters, load_font
 from .render.svg import render_svg
 from .style import Style
 
@@ -352,4 +352,9 @@ def blueprint_to_files(
     return [path for _, _, path in plan if path in written_set]
 
 
-__all__ = ["blueprint", "blueprint_to_files", "load_font"]
+__all__ = [
+    "blueprint",
+    "blueprint_to_files",
+    "load_font",
+    "list_font_masters",
+]

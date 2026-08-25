@@ -10,7 +10,7 @@ from typing import Any, List, Optional
 from typedesignxray import ir
 
 from .binary import parse_binary
-from .glyphs import list_layers, parse_glyphs
+from .glyphs import list_layers, list_masters, parse_glyphs
 
 
 _GLYPHS_EXTENSIONS = (".glyphs", ".glyphspackage")
@@ -90,10 +90,22 @@ def list_font_layers(path: Any, glyph_name: str) -> List[ir.LayerInfo]:
     raise _unsupported(path)
 
 
+def list_font_masters(path: Any) -> List[ir.MasterInfo]:
+    """List selectable Glyphs masters/styles for a supported font source."""
+    extension = _extension(path)
+    if extension in _GLYPHS_EXTENSIONS:
+        return list_masters(path)
+    if extension in _BINARY_EXTENSIONS or extension == _UFO_EXTENSION:
+        return []
+    raise _unsupported(path)
+
+
 __all__ = [
     "load_font",
     "list_font_layers",
+    "list_font_masters",
     "parse_binary",
     "parse_glyphs",
     "list_layers",
+    "list_masters",
 ]

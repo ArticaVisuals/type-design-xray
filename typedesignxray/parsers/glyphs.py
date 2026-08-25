@@ -95,6 +95,9 @@ def parse_glyphs(
             unicodes=unicodes,
             layer_name=_text(selected_layer.get("name")),
             node_types_exact=True,
+            category=_optional_text(glyph_record.get("category")),
+            subcategory=_optional_text(glyph_record.get("subCategory")),
+            script=_optional_text(glyph_record.get("script")),
         )
         font.glyphs[glyph_name] = glyph
         for codepoint in unicodes:
@@ -117,6 +120,18 @@ def parse_glyphs(
 
     font.kerning = _read_kerning(data, master_id, master_name)
     return font
+
+
+def list_masters(path: Union[str, os.PathLike]) -> List[ir.MasterInfo]:
+    """List selectable masters/styles without parsing glyph geometry."""
+    data = plist.load(path)
+    return [
+        ir.MasterInfo(
+            master_id=_text(master.get("id")),
+            name=_text(master.get("name")),
+        )
+        for master in _dict_items(data.get("fontMaster"))
+    ]
 
 
 def list_layers(
@@ -761,6 +776,11 @@ def _text(value: Any) -> str:
     return str(value)
 
 
+def _optional_text(value: Any) -> Optional[str]:
+    text = _text(value).strip()
+    return text or None
+
+
 def _items(value: Any) -> List[Any]:
     if value is None:
         return []
@@ -783,4 +803,4 @@ def _flatten(value: Any) -> Iterable[Any]:
             yield item
 
 
-__all__ = ["parse_glyphs", "list_layers"]
+__all__ = ["parse_glyphs", "list_layers", "list_masters"]

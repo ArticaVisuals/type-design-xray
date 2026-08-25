@@ -104,18 +104,39 @@ def _get(path, parse_json=True):
     return status, json.loads(decoded) if parse_json else decoded
 
 
-def _post_render(payload):
+def _post_json_raw(path, payload):
     body = json.dumps(payload).encode("utf-8")
     request = (
-        "POST /api/render HTTP/1.0\r\n"
+        "POST {} HTTP/1.0\r\n"
         "Host: localhost\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
         "Content-Length: {}\r\n"
         "\r\n"
-    ).format(len(body)).encode("ascii") + body
+    ).format(path, len(body)).encode("ascii") + body
+    return _exchange(request)
+
+
+def _post_json(path, payload):
+    status, _, response_body = _post_json_raw(path, payload)
+    return status, json.loads(response_body.decode("utf-8"))
+
+
+def _post_with_content_type(path, body, content_type):
+    request = (
+        "POST {} HTTP/1.0\r\n"
+        "Host: localhost\r\n"
+        "Connection: close\r\n"
+        "Content-Type: {}\r\n"
+        "Content-Length: {}\r\n"
+        "\r\n"
+    ).format(path, content_type, len(body)).encode("ascii") + body
     status, _, response_body = _exchange(request)
     return status, json.loads(response_body.decode("utf-8"))
+
+
+def _post_render(payload):
+    return _post_json("/api/render", payload)
 
 
 def test_fonts_endpoint_returns_sorted_visible_family_names() -> None:
@@ -130,6 +151,87 @@ def test_fonts_endpoint_returns_sorted_visible_family_names() -> None:
         families,
         key=lambda family: (family.casefold(), family),
     )
+
+
+def test_specimen_page_and_api_routes_use_the_shared_local_server() -> None:
+    status, page = _get("/specimen", parse_json=False)
+    assert status == 200
+    assert "Specimen Player" in page
+    assert 'fetch("/api/upload"' in page
+
+    status, catalog = _post_json(
+        "/api/specimen/catalog",
+        {"font_path": str(EXAMPLE)},
+    )
+    assert status == 200
+    assert catalog["family_name"] == "Blueprint Demo"
+    assert catalog["sequence"][0]["left"] == "A"
+    assert catalog["sequence"][0]["right"] == "a"
+
+    status, rendered = _post_json(
+        "/api/specimen/render",
+        {
+            "font_path": str(EXAMPLE),
+            "glyphs": ["A", "a"],
+            "point_size": 370,
+            "mode": "xray",
+        },
+    )
+    assert status == 200
+    assert rendered["mode"] == "xray"
+    assert len(rendered["renders"]) == 2
+    for item in rendered["renders"]:
+        ET.fromstring(item["svg"])
+
+
+def test_specimen_export_route_streams_a_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_export(payload, *, output_dir):
+        destination = Path(output_dir) / "Caliper-Sans-Regular-specimen.gif"
+        destination.write_bytes(b"GIF89a")
+        return {
+            "path": str(destination),
+            "name": destination.name,
+            "content_type": "image/gif",
+            "format": "gif",
+        }
+
+    monkeypatch.setattr(
+        "typedesignxray.web.specimen_export_request",
+        fake_export,
+    )
+    status, headers, body = _post_json_raw(
+        "/api/specimen/export",
+        {
+            "font_path": str(EXAMPLE),
+            "master": "m01",
+            "format": "gif",
+        },
+    )
+
+    assert status == 200
+    assert headers["content-type"] == "image/gif"
+    assert "Caliper-Sans-Regular-specimen.gif" in headers[
+        "content-disposition"
+    ]
+    assert body == b"GIF89a"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/render",
+        "/api/specimen/catalog",
+        "/api/specimen/render",
+        "/api/specimen/export",
+    ],
+)
+def test_json_routes_reject_cors_safelisted_content_types(path: str) -> None:
+    status, result = _post_with_content_type(path, b"{}", "text/plain")
+
+    assert status == 415
+    assert result["error"] == "Content-Type must be application/json"
 
 
 def test_upload_round_trip_can_render_the_uploaded_font() -> None:

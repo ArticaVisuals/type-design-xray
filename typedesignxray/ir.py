@@ -113,6 +113,12 @@ class Glyph:
     #: False when smooth/corner classification was inferred rather than authored
     #: (i.e. the source was a compiled OTF/TTF).
     node_types_exact: bool = True
+    #: Glyphs category metadata, when explicitly authored in the source.
+    category: Optional[str] = None
+    #: Glyphs subCategory metadata, when explicitly authored in the source.
+    subcategory: Optional[str] = None
+    #: Glyphs script metadata, when explicitly authored in the source.
+    script: Optional[str] = None
 
     def bounds(self) -> Optional[Tuple[float, float, float, float]]:
         """Tight bounding box over anchors *and* handles: (xmin, ymin, xmax, ymax).
@@ -227,6 +233,14 @@ class LayerInfo:
     has_open_contours: bool = False
 
 
+@dataclass
+class MasterInfo:
+    """Describes one selectable master/style in a Glyphs source file."""
+
+    master_id: str
+    name: str
+
+
 def quadratic_to_cubic(
     start: Point, control: Point, end: Point
 ) -> Tuple[Point, Point]:
@@ -287,6 +301,7 @@ __all__ = [
     "Layout",
     "Font",
     "LayerInfo",
+    "MasterInfo",
     "quadratic_to_cubic",
     "infer_smooth",
 ]
