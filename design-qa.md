@@ -131,6 +131,22 @@ No P0, P1, or P2 visual mismatch remains for the requested spacing-metrics treat
 
 final result: passed
 
+## X-Ray Blueprint monochrome shell — 2026-08-30
+
+- Restyled the X-Ray Blueprint application shell to use the same monospaced
+  typography, black field, white text, neutral borders, compact control radii,
+  and grayscale three-tool switcher as Font Specimen and Font Design Process.
+- Preserved the independent blueprint artwork colors and all color controls;
+  the monochrome change applies to the interface chrome, not exported artwork.
+- Confirmed the compact browser layout remains readable and all three tool
+  links remain visible.
+- Browser console: no warnings or errors.
+- Automated suite: 334 passed, 4 skipped.
+- Embedded JavaScript syntax check: passed.
+- Visual capture: `/tmp/type-design-xray-monochrome-blueprint.png`.
+
+final result: passed
+
 ## Unified three-tool navigation and looping playback — 2026-08-30
 
 - Added one shared switcher to X-Ray Blueprint, Font Specimen, and Font Design

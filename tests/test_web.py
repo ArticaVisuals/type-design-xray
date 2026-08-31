@@ -1040,6 +1040,33 @@ def _css_rule(page, selector, start=0):
     return match.group(1)
 
 
+def test_preview_page_matches_the_monochrome_player_shell() -> None:
+    page = _preview_page()
+    stylesheet = page.split("<style>", 1)[1].split("</style>", 1)[0]
+    root = _css_rule(page, ":root")
+    body = _css_rule(page, "body")
+    controls = _css_rule(
+        page, 'input[type="text"], input[type="number"], select'
+    )
+    primary = _css_rule(page, ".primary")
+
+    assert (
+        'font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;'
+        in root
+    )
+    assert "background: #111;" in root
+    assert "color: #f5f5f3;" in root
+    assert "background: #111;" in body
+    assert "border-radius: 2px;" in controls
+    assert "background: #111;" in controls
+    assert "background: #f5f5f3;" in primary
+    assert "color: #111;" in primary
+    assert "radial-gradient" not in stylesheet
+    assert "#07111f" not in stylesheet
+    assert "#3d8bfd" not in stylesheet
+    assert "#5aa9ff" not in stylesheet
+
+
 def test_preview_page_uses_independently_scrolling_desktop_panes() -> None:
     page = _preview_page()
     shell = _css_rule(page, ".shell")
