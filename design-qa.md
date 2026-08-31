@@ -131,6 +131,22 @@ No P0, P1, or P2 visual mismatch remains for the requested spacing-metrics treat
 
 final result: passed
 
+## Shared selector placement on X-Ray Blueprint — 2026-08-30
+
+- Moved the shared three-tool selector outside the X-Ray Blueprint's two-pane
+  shell so it spans the full viewport above both the controls and preview.
+- Matched the desktop selector geometry used by Font Specimen and Font Design
+  Process: three equal columns, sticky top placement, and the same 61 px header
+  allowance for the independently scrolling X-Ray panes.
+- Retained the existing stacked, full-width selector treatment at compact
+  widths.
+- Browser console: no warnings or errors.
+- Automated suite: 335 passed, 4 skipped.
+- Embedded JavaScript syntax check: passed.
+- Visual capture: `/tmp/type-design-xray-top-switcher.png`.
+
+final result: passed
+
 ## X-Ray Blueprint monochrome shell — 2026-08-30
 
 - Restyled the X-Ray Blueprint application shell to use the same monospaced

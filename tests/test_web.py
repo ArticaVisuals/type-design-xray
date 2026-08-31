@@ -1067,6 +1067,24 @@ def test_preview_page_matches_the_monochrome_player_shell() -> None:
     assert "#5aa9ff" not in stylesheet
 
 
+def test_preview_page_places_the_shared_tool_switcher_above_both_panes() -> None:
+    page = _preview_page()
+    switcher = _css_rule(page, ".tool-switcher")
+    switcher_markup = '<nav class="tool-switcher"'
+
+    assert page.index(switcher_markup) < page.index('<div class="shell">')
+    assert page.index('<div class="shell">') < page.index("<aside>")
+    assert "position: sticky;" in switcher
+    assert "top: 0;" in switcher
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr));" in switcher
+    assert "border-bottom: 1px solid #292927;" in switcher
+    assert not re.search(
+        r"<aside>.*?<nav class=\"tool-switcher\"",
+        page,
+        re.DOTALL,
+    )
+
+
 def test_preview_page_uses_independently_scrolling_desktop_panes() -> None:
     page = _preview_page()
     shell = _css_rule(page, ".shell")
@@ -1074,9 +1092,11 @@ def test_preview_page_uses_independently_scrolling_desktop_panes() -> None:
     main = _css_rule(page, "main")
     stage = _css_rule(page, ".stage")
 
-    assert "height: 100vh;" in shell
-    assert "height: 100dvh;" in shell
-    assert shell.index("height: 100vh;") < shell.index("height: 100dvh;")
+    assert "height: calc(100vh - 61px);" in shell
+    assert "height: calc(100dvh - 61px);" in shell
+    assert shell.index("height: calc(100vh - 61px);") < shell.index(
+        "height: calc(100dvh - 61px);"
+    )
     assert "overflow: hidden;" in shell
 
     assert "min-width: 0;" in aside

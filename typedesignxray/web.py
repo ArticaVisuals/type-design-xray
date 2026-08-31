@@ -258,8 +258,8 @@ _PAGE_TEMPLATE = r"""<!doctype html>
     .shell {
       display: grid;
       grid-template-columns: minmax(19rem, 25rem) minmax(0, 1fr);
-      height: 100vh;
-      height: 100dvh;
+      height: calc(100vh - 61px);
+      height: calc(100dvh - 61px);
       overflow: hidden;
     }
     aside {
@@ -294,11 +294,18 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       line-height: 1.45;
     }
     .tool-switcher {
+      position: sticky;
+      top: 0;
+      z-index: 6;
       display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 1px;
-      margin: -.35rem 0 1.4rem;
+      padding: 7px 14px;
+      border-bottom: 1px solid #292927;
+      background: #080808;
     }
     .tool-tab {
+      min-width: 0;
       display: grid;
       gap: 2px;
       padding: 7px 10px;
@@ -319,9 +326,12 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       letter-spacing: .08em;
     }
     .tool-summary {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       color: #777;
       font-size: 9px;
-      line-height: 1.35;
+      letter-spacing: .02em;
     }
     form { display: grid; gap: 1rem; }
     label, legend {
@@ -757,6 +767,11 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     @media (max-width: 850px) {
+      .tool-switcher {
+        position: static;
+        grid-template-columns: 1fr;
+      }
+      .tool-summary { white-space: normal; }
       .shell {
         grid-template-columns: 1fr;
         height: auto;
@@ -783,11 +798,11 @@ _PAGE_TEMPLATE = r"""<!doctype html>
   </style>
 </head>
 <body>
+  __TOOL_SWITCHER__
   <div class="shell">
     <aside>
       <h1>Type Design X-Ray</h1>
       <p class="lede">Three source-driven font tools in one local app. Switch tools at any time; your files stay on this computer.</p>
-      __TOOL_SWITCHER__
       <form id="controls">
         <div>
           <label for="fontPath">Font path</label>
