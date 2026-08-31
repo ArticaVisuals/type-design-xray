@@ -35,7 +35,7 @@ from .specimen import (
 from .specimen_export import _metadata_svg, _slug
 
 
-FINAL_HOLD_MS = 3000
+FINAL_HOLD_MS = 1000
 DEFAULT_FRAME_DELAY_MS = 200
 PROCESS_FRAME_WIDTH = 540
 PROCESS_FRAME_HEIGHT = 766

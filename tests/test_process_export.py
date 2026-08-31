@@ -25,7 +25,7 @@ def test_process_dimensions_and_fixed_final_hold_are_public() -> None:
     assert process_export.FRAME_HEIGHT == 766
     assert process_export.ANIMATION_WIDTH == 1080
     assert process_export.ANIMATION_HEIGHT == 1532
-    assert process_export.FINAL_HOLD_MS == 3000
+    assert process_export.FINAL_HOLD_MS == 1000
 
 
 def test_export_frame_writes_svg_and_rasterizes_png_at_logical_size(
@@ -87,7 +87,7 @@ def test_animation_accepts_layer_records_and_renderer_with_variable_timing(
             "duration 0.125",
             "file frame-000001.png",
             "option framerate 1000",
-            "duration 2.999",
+            "duration 0.999",
             "file frame-000001.png",
             "option framerate 1000",
         ]
@@ -116,9 +116,9 @@ def test_animation_accepts_layer_records_and_renderer_with_variable_timing(
         "frame_count": 2,
         "master_frame": 2,
         "frame_delay_ms": 125.0,
-        "final_hold_ms": 3000.0,
-        "frame_durations_ms": [125.0, 3000.0],
-        "duration_ms": 3125.0,
+        "final_hold_ms": 1000.0,
+        "frame_durations_ms": [125.0, 1000.0],
+        "duration_ms": 1125.0,
         "width": 1080,
         "height": 1532,
     }
@@ -157,8 +157,8 @@ def test_animation_accepts_simple_svg_sequence_and_assumes_last_is_master(
     )
 
     assert result["content_type"] == content_type
-    assert result["frame_durations_ms"] == [200.0, 200.0, 3000.0]
-    assert result["duration_ms"] == 3400.0
+    assert result["frame_durations_ms"] == [200.0, 200.0, 1000.0]
+    assert result["duration_ms"] == 1400.0
 
 
 def test_animation_requires_identified_master_to_be_exactly_once_and_last(

@@ -8,7 +8,7 @@ avoids a process-player/exporter import cycle.
 
 Logical process frames are 540 x 766.  Animated GIF and MP4 output is rendered
 at 2x (1080 x 1532).  Every non-final layer uses the caller-selected delay;
-the final active-master layer is always held for exactly 3000 milliseconds.
+the final active-master layer is always held for exactly 1000 milliseconds.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ ANIMATION_SCALE = 2
 ANIMATION_WIDTH = FRAME_WIDTH * ANIMATION_SCALE
 ANIMATION_HEIGHT = FRAME_HEIGHT * ANIMATION_SCALE
 DEFAULT_FRAME_DELAY_MS = 200.0
-FINAL_HOLD_MS = 3000.0
+FINAL_HOLD_MS = 1000.0
 
 _CONTENT_TYPES = {
     "gif": "image/gif",

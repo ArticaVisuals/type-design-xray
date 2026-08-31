@@ -109,7 +109,7 @@ No P0, P1, or P2 visual mismatch remains for the requested spacing-metrics treat
 ### Interaction and export
 
 - File import, character/exact-name resolution, master selection, exact layer-ID selection, stepping, playback, layer selection, color controls, Bézier mode, independent handle visibility, and all four export actions are wired to the same source sequence.
-- Playback uses recursive timeouts: ordinary layers use the adjustable speed and the final active master uses a fixed 3000 ms hold.
+- Playback uses recursive timeouts: ordinary layers use the adjustable speed and the final active master uses a fixed 1000 ms hold.
 - Current-layer SVG/PNG is 540 × 766. Complete GIF/MP4 is 1080 × 1532.
 
 ## Findings and iteration history
@@ -138,7 +138,7 @@ final result: passed
   exposed with `aria-current="page"`.
 - Confirmed the switcher is usable in the compact Codex browser viewport and
   does not cover the existing controls or player canvas.
-- Confirmed Font Design Process playback continues after the 3000 ms active
+- Confirmed Font Design Process playback continues after the 1000 ms active
   master hold: `Regular — ACTIVE` returned to `Skeleton v1`, then advanced to
   `Regular — ACTIVE` again without another Play click.
 - Browser console: no warnings or errors.

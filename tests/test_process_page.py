@@ -64,7 +64,7 @@ def test_process_page_uses_process_api_contracts() -> None:
 def test_process_playback_uses_recursive_timeout_and_exact_final_hold() -> None:
     page = process_page()
 
-    assert "const FINAL_HOLD_MS = 3000;" in page
+    assert "const FINAL_HOLD_MS = 1000;" in page
     assert "isFinalLayer(selected) ? FINAL_HOLD_MS : normalDelayMs()" in page
     assert "window.setTimeout(async () =>" in page
     assert "scheduleNext();" in page
@@ -78,7 +78,7 @@ def test_process_playback_uses_recursive_timeout_and_exact_final_hold() -> None:
     assert "if (isFinalLayer(currentLayer()))" in page
     assert "layer.value = layerValue(items[0], 0);" in page
     assert "await advanceLoop();" in page
-    assert "PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 3000 MS" in page
+    assert "PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 1000 MS" in page
 
 
 def test_process_player_caches_every_render_setting_for_exact_live_timing() -> None:

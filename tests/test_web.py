@@ -198,7 +198,7 @@ def test_process_page_and_layer_api_routes_are_additive() -> None:
     assert catalog["family_name"] == "Blueprint Demo"
     assert catalog["layers"][0]["name"] == "Skeleton v1"
     assert catalog["layers"][-1]["is_final"] is True
-    assert catalog["final_hold_ms"] == 3000
+    assert catalog["final_hold_ms"] == 1000
 
     status, rendered = _post_json(
         "/api/process/render",

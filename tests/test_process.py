@@ -75,7 +75,7 @@ def test_catalog_starts_with_skeleton_then_preserves_authored_group_order(
     assert result["layers"][-1]["is_final"] is True
     assert result["layers"][-1]["delay_ms"] == FINAL_HOLD_MS
     assert result["normal_delay_ms"] == 200
-    assert result["final_hold_ms"] == 3000
+    assert result["final_hold_ms"] == 1000
     assert result["frame_size"] == {"width": 540, "height": 766}
     assert result["animation_size"] == {"width": 1080, "height": 1532}
 
@@ -292,7 +292,7 @@ def test_export_request_writes_current_layer_svg_and_complete_timed_sequence(
             "content_type": "video/mp4",
             "format": "mp4",
             "frame_count": len(captured["frames"]),
-            "final_hold_ms": 3000,
+            "final_hold_ms": 1000,
             "width": 1080,
             "height": 1532,
         }
@@ -328,6 +328,6 @@ def test_export_request_writes_current_layer_svg_and_complete_timed_sequence(
         True,
     ]
     assert captured["frame_delay_ms"] == 125
-    assert animation_result["final_hold_ms"] == 3000
+    assert animation_result["final_hold_ms"] == 1000
     assert animation_result["width"] == 1080
     assert animation_result["height"] == 1532

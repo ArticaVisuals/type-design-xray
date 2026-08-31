@@ -208,7 +208,7 @@ _PROCESS_PAGE = r"""<!doctype html>
   <script>
     (() => {
       "use strict";
-      const FINAL_HOLD_MS = 3000;
+      const FINAL_HOLD_MS = 1000;
       const $ = (id) => document.getElementById(id);
       const fileInput = $("font-file");
       const master = $("master");
@@ -426,7 +426,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           playing = true;
           play.textContent = "PAUSE";
           play.setAttribute("aria-pressed", "true");
-          setStatus("PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 3000 MS");
+          setStatus("PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 1000 MS");
           scheduleNext();
         } catch (error) {
           if (
@@ -597,7 +597,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           URL.revokeObjectURL(url);
           setStatus(
             `${format.toUpperCase()} EXPORTED · ${selection}` +
-            (frameFormat ? "" : " · FINAL HOLD 3000 MS")
+            (frameFormat ? "" : " · FINAL HOLD 1000 MS")
           );
         } catch (error) {
           setStatus(error.message, true);

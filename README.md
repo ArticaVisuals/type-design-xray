@@ -412,9 +412,9 @@ that active master as the construction changes, so identity and spacing metadata
 do not jump between backup layers.
 
 Every intermediate frame uses **Speed** (0.2 seconds by default). The final
-active master always holds for exactly **3000 ms**, independent of that setting.
+active master always holds for exactly **1000 ms**, independent of that setting.
 The player does not autoplay. After you click **Play**, it loops continuously:
-the final master holds for 3000 ms and then returns to the first skeleton layer.
+the final master holds for 1000 ms and then returns to the first skeleton layer.
 Previous, next, the layer menu, and play/pause all work on the exact same ordered
 sequence used by export.
 
