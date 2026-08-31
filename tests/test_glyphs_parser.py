@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from typedesignxray import MasterInfo, list_font_masters
+from typedesignxray import MasterInfo, list_font_masters, load_font
 from typedesignxray.parsers import plist
 from typedesignxray.parsers.glyphs import (
     list_layers,
@@ -239,6 +239,90 @@ def test_component_decomposition_and_named_layer_fallback() -> None:
     assert alternate_font.glyphs["base"].layer_name == ""
     with pytest.raises(ValueError, match="not found on any glyph"):
         parse_glyphs(FIXTURES / "synthetic_v4.glyphs", layer="Missing")
+
+
+def test_exact_layer_id_wins_over_name_and_applies_to_components(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "layer-id-components.glyphs"
+    path.write_text(
+        """
+        {
+        fontMaster = (
+            { id = M1; name = Regular; },
+            { id = M2; name = Bold; },
+        );
+        glyphs = (
+            {
+                glyphname = base;
+                layers = (
+                    {
+                        layerId = NAMED-BASE;
+                        name = PROCESS-L2;
+                        shapes = ({ nodes = ((10,0,l),(10,100,l)); });
+                        width = 110;
+                    },
+                    {
+                        associatedMasterId = M2;
+                        layerId = PROCESS-L2;
+                        name = "Process layer";
+                        shapes = ({ nodes = ((20,0,l),(20,200,l)); });
+                        width = 220;
+                    },
+                    {
+                        layerId = M2;
+                        shapes = ({ nodes = ((30,0,l),(30,300,l)); });
+                        width = 330;
+                    },
+                );
+            },
+            {
+                glyphname = composite;
+                layers = (
+                    {
+                        layerId = NAMED-COMPOSITE;
+                        name = PROCESS-L2;
+                        shapes = ({ ref = base; pos = (100,0); });
+                        width = 410;
+                    },
+                    {
+                        associatedMasterId = M2;
+                        layerId = PROCESS-L2;
+                        name = "Process layer";
+                        shapes = ({ ref = base; pos = (200,0); });
+                        width = 420;
+                    },
+                    {
+                        layerId = M2;
+                        shapes = ({ ref = base; pos = (300,0); });
+                        width = 430;
+                    },
+                );
+            },
+            {
+                glyphname = masterFallback;
+                layers = (
+                    { layerId = M1; width = 510; },
+                    { layerId = M2; width = 520; },
+                );
+            },
+        );
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    font = load_font(path, layer="PROCESS-L2", master="Bold")
+
+    assert font.glyphs["base"].advance_width == 220
+    assert font.glyphs["base"].layer_name == "Process layer"
+    assert font.glyphs["base"].contours[0].nodes[0].point == (20.0, 0.0)
+    assert font.glyphs["composite"].advance_width == 420
+    assert font.glyphs["composite"].contours[0].nodes[0].point == (
+        220.0,
+        0.0,
+    )
+    assert font.glyphs["masterFallback"].advance_width == 520
 
 
 def test_named_master_layer_wins_over_earlier_background_layer(

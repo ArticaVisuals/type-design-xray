@@ -57,6 +57,7 @@ jobs:
           python -m pip check
           python -I -c "from importlib.metadata import version; import typedesignxray; from typedesignxray.config import available_presets; assert typedesignxray.__version__ == version('type-design-xray') == '1.0.0'; assert available_presets() == ['blueprint', 'contrast', 'drafting', 'light']"
           python -I -c "from pathlib import Path; from typedesignxray.specimen import catalog_request, render_request, specimen_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source)}); assert catalog['sequence'][0]['label'] == 'A / a'; rendered = render_request({'font_path': str(source), 'glyphs': ['A', 'a'], 'mode': 'xray'}); assert rendered['compounded'] and len(rendered['renders']) == 2 and 'Specimen Player' in specimen_page()"
+          python -I -c "from pathlib import Path; from typedesignxray.process import catalog_request, render_request; from typedesignxray.process_page import process_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source), 'glyph': 'a'}); assert catalog['layers'][0]['name'] == 'Skeleton v1' and catalog['layers'][-1]['is_final'] and catalog['final_hold_ms'] == 3000; rendered = render_request({'font_path': str(source), 'glyph': 'a', 'layer_id': catalog['layers'][0]['layer_id'], 'bezier': False, 'handles': False}); assert 'data-mode=\"outline\"' in rendered['svg'] and 'Font Design Process Video' in process_page()"
 
       - name: Smoke-test installed commands
         run: |
@@ -92,6 +93,8 @@ jobs:
           python - <<'PY'
           import os
           from pathlib import Path
+          from typedesignxray.process import catalog_request as process_catalog
+          from typedesignxray.process import export_request as process_export
           from typedesignxray.specimen_export import export_frame, export_specimen
 
           source = Path("examples/BlueprintDemo.glyphs").resolve()
@@ -99,12 +102,28 @@ jobs:
           png = output / "specimen-frame.png"
           gif = output / "specimen.gif"
           mp4 = output / "specimen.mp4"
+          process_png = output / "process-layer.png"
+          process_gif = output / "process.gif"
+          process_mp4 = output / "process.mp4"
           export_frame(source, png, frame_number=1, format_name="png", xray=True)
           export_specimen(source, gif, format_name="gif", start_frame=1, end_frame=1, xray=True)
           export_specimen(source, mp4, format_name="mp4", start_frame=1, end_frame=1, xray=True)
+          process = process_catalog({"font_path": str(source), "glyph": "a"})
+          process_common = {
+              "font_path": str(source),
+              "glyph": "a",
+              "bezier": True,
+              "handles": True,
+          }
+          process_export(dict(process_common, format="png", output_path=str(process_png), layer_id=process["layers"][0]["layer_id"]))
+          process_export(dict(process_common, format="gif", output_path=str(process_gif), speed=0.2))
+          process_export(dict(process_common, format="mp4", output_path=str(process_mp4), speed=0.2))
           assert png.read_bytes().startswith(b"\x89PNG")
           assert gif.read_bytes().startswith(b"GIF89a")
           assert mp4.stat().st_size > 100
+          assert process_png.read_bytes().startswith(b"\x89PNG")
+          assert process_gif.read_bytes().startswith(b"GIF89a")
+          assert process_mp4.stat().st_size > 100
           PY
 
       - name: Verify documented Windows PowerShell setup

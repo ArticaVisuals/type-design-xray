@@ -24,7 +24,7 @@ def parse_glyphs(
     layer: Optional[str] = None,
     master: Optional[str] = None,
 ) -> ir.Font:
-    """Read one Glyphs master and optionally substitute a named layer."""
+    """Read one Glyphs master and optionally substitute a layer by ID or name."""
     data = plist.load(path)
     masters = _dict_items(data.get("fontMaster"))
     selected_master = _select_master(masters, master)
@@ -213,6 +213,14 @@ def _glyph_name(record: Dict[str, Any]) -> str:
 def _layer_exists(
     glyphs: Iterable[Dict[str, Any]], requested: str
 ) -> bool:
+    layer_ids = [
+        _text(layer.get("layerId"))
+        for glyph in glyphs
+        for layer in _dict_items(glyph.get("layers"))
+        if layer.get("layerId") not in (None, "")
+    ]
+    if requested in layer_ids:
+        return True
     names = [
         _text(layer.get("name"))
         for glyph in glyphs
@@ -232,6 +240,13 @@ def _select_layer(
 ) -> Dict[str, Any]:
     layers = _dict_items(glyph.get("layers"))
     if requested is not None:
+        exact_id = [
+            item
+            for item in layers
+            if _text(item.get("layerId")) == requested
+        ]
+        if exact_id:
+            return exact_id[0]
         exact = [
             item
             for item in layers

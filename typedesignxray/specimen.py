@@ -721,6 +721,9 @@ def _glyph_svg(
     point_size: float,
     mode: str,
     colors: Optional[Dict[str, str]] = None,
+    *,
+    show_handles: bool = True,
+    show_nodes: bool = True,
 ) -> Tuple[str, str, float]:
     palette = dict(DEFAULT_SPECIMEN_COLORS)
     if colors:
@@ -755,6 +758,18 @@ def _glyph_svg(
             '<path class="solid-outline" d="{}" fill="{}" '
             'fill-rule="nonzero"/>'
         ).format(html.escape(path, quote=True), palette["fill"])
+    elif mode == "outline":
+        # Open skeleton layers need a visible path even when the interactive
+        # Bézier overlay is disabled.  Keep this deliberately free of nodes
+        # and handles so the toggle still has a clear, literal meaning.
+        geometry = (
+            '<path class="native-outline" d="{path}" fill="none" '
+            'stroke="{stroke}" stroke-width="1.25" '
+            'vector-effect="non-scaling-stroke"/>'
+        ).format(
+            path=html.escape(path, quote=True),
+            stroke=palette["stroke"],
+        )
     else:
         marker_radius = 3.0 / scale
         geometry = (
@@ -768,8 +783,16 @@ def _glyph_svg(
             path=html.escape(path, quote=True),
             fill=palette["fill"],
             stroke=palette["stroke"],
-            handles=_handle_geometry(glyph, marker_radius, palette),
-            nodes=_node_geometry(glyph, marker_radius, palette),
+            handles=(
+                _handle_geometry(glyph, marker_radius, palette)
+                if show_handles
+                else ""
+            ),
+            nodes=(
+                _node_geometry(glyph, marker_radius, palette)
+                if show_nodes
+                else ""
+            ),
         )
     markup = (
         '<svg xmlns="http://www.w3.org/2000/svg" '

@@ -374,6 +374,56 @@ this project. The player should show the `A / a` pair immediately. Turn on
 media dependencies above are installed, **Frame PNG**, **Export GIF**, and
 **Export MP4** should download too. This test needs no private font files.
 
+### Font Design Process Video
+
+The preview also includes a separate, additive single-glyph process player at
+**[http://127.0.0.1:8765/process](http://127.0.0.1:8765/process)**. Open it from
+**Open Font Design Process Video** on the main page. This player uses the left
+half of the specimen layout: a 540×766 layer frame with source-derived metadata
+above one glyph, matching the vertical Type Design X-Ray process format.
+
+Import an editable `.glyphs` file, enter one character such as `A` or an exact
+Glyphs glyph name such as `ampersand`, then click **Load**. The player reads the
+selected glyph's real authored layers by their unique Glyphs layer IDs. It
+starts with skeleton-like layers, preserves the authored order of remaining
+intermediate fills, backup layers, component-only layers, and duplicate layer
+names, then places the selected active master last. Layers associated with
+another master are not mixed into the sequence. Header metrics stay anchored
+to that active master as
+the construction changes, so the identity and spacing metadata do not jump
+between backup layers.
+
+Every intermediate frame uses **Speed** (0.2 seconds by default). The final
+active master always holds for exactly **3000 ms**, independent of that setting.
+The player does not autoplay. Previous, next, the layer menu, and play/pause all
+work on the exact same ordered sequence used by export.
+
+The controls also include:
+
+- Point size and all eight specimen colors: background, fill, stroke, text,
+  guides, handle lines, point fill, and point stroke.
+- **Bézier**, on by default, which compounds closed shapes before drawing the
+  resulting outline and nodes. Open skeleton contours pass through unchanged.
+- A separate **Handles** switch, so nodes can remain visible without the
+  off-curve points and connecting lines. If Bézier is off, an open skeleton is
+  still drawn as an outline instead of disappearing.
+- **Layer SVG** and **Layer PNG** for the current 540×766 frame.
+- **Export GIF** and **Export MP4** for the complete process at 1080×1532 (2×
+  the player frame), including the fixed final hold.
+
+Compounded Bézier rendering and the media exports use the same optional
+dependencies documented in the Specimen Player section above.
+
+#### 30-second process-player test
+
+Start the local preview from the project folder—the directory containing
+`pyproject.toml`—and open **Font Design Process Video**. Import the bundled
+`examples/BlueprintDemo.glyphs`, enter `a`, and click **Load**. The first frame
+is its open `Skeleton v1` layer and the final frame is the active `Regular`
+master. Click **Play** to verify the longer final hold, toggle **Handles**, and
+try **Layer SVG**. With Cairo/resvg and FFmpeg installed, GIF and MP4 should
+download at 1080×1532. No private font is needed for this test.
+
 Use `--port` if 8765 is taken; the browser opens the selected port. Use
 `--no-open` when you want the command to print the URL without launching a
 browser, such as in a headless or automated environment.

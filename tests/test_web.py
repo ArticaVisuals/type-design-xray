@@ -184,6 +184,39 @@ def test_specimen_page_and_api_routes_use_the_shared_local_server() -> None:
         ET.fromstring(item["svg"])
 
 
+def test_process_page_and_layer_api_routes_are_additive() -> None:
+    status, page = _get("/process", parse_json=False)
+    assert status == 200
+    assert "Font Design Process Video" in page
+    assert 'fetch("/api/upload"' in page
+
+    status, catalog = _post_json(
+        "/api/process/catalog",
+        {"font_path": str(EXAMPLE), "glyph": "a"},
+    )
+    assert status == 200
+    assert catalog["family_name"] == "Blueprint Demo"
+    assert catalog["layers"][0]["name"] == "Skeleton v1"
+    assert catalog["layers"][-1]["is_final"] is True
+    assert catalog["final_hold_ms"] == 3000
+
+    status, rendered = _post_json(
+        "/api/process/render",
+        {
+            "font_path": str(EXAMPLE),
+            "glyph": "a",
+            "layer_id": catalog["layers"][0]["layer_id"],
+            "point_size": 370,
+            "bezier": False,
+            "handles": False,
+        },
+    )
+    assert status == 200
+    assert rendered["layer"]["name"] == "Skeleton v1"
+    assert rendered["glyph"]["name"] == "a"
+    assert ET.fromstring(rendered["svg"]).get("data-mode") == "outline"
+
+
 def test_specimen_export_route_streams_a_download(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -218,6 +251,38 @@ def test_specimen_export_route_streams_a_download(
     assert body == b"GIF89a"
 
 
+def test_process_export_route_streams_a_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_export(payload, *, output_dir):
+        destination = Path(output_dir) / "Caliper-A-design-process.mp4"
+        destination.write_bytes(b"mp4")
+        return {
+            "path": str(destination),
+            "name": destination.name,
+            "content_type": "video/mp4",
+            "format": "mp4",
+        }
+
+    monkeypatch.setattr(
+        "typedesignxray.web.process_export_request",
+        fake_export,
+    )
+    status, headers, body = _post_json_raw(
+        "/api/process/export",
+        {
+            "font_path": str(EXAMPLE),
+            "glyph": "A",
+            "format": "mp4",
+        },
+    )
+
+    assert status == 200
+    assert headers["content-type"] == "video/mp4"
+    assert "Caliper-A-design-process.mp4" in headers["content-disposition"]
+    assert body == b"mp4"
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -225,6 +290,9 @@ def test_specimen_export_route_streams_a_download(
         "/api/specimen/catalog",
         "/api/specimen/render",
         "/api/specimen/export",
+        "/api/process/catalog",
+        "/api/process/render",
+        "/api/process/export",
     ],
 )
 def test_json_routes_reject_cors_safelisted_content_types(path: str) -> None:

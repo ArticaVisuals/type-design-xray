@@ -27,6 +27,12 @@ from fontTools.ttLib import TTCollection, TTFont
 
 from .api import blueprint
 from .config import available_presets, resolve_style
+from .process import (
+    catalog_request as process_catalog_request,
+    export_request as process_export_request,
+    render_request as process_render_request,
+)
+from .process_page import process_page
 from .specimen import (
     catalog_request as specimen_catalog_request,
     render_request as specimen_render_request,
@@ -59,6 +65,14 @@ _SPECIMEN_EXPORT_DIRECTORY = Path(
 atexit.register(
     shutil.rmtree,
     str(_SPECIMEN_EXPORT_DIRECTORY),
+    ignore_errors=True,
+)
+_PROCESS_EXPORT_DIRECTORY = Path(
+    tempfile.mkdtemp(prefix="type-design-xray-process-exports-")
+).resolve()
+atexit.register(
+    shutil.rmtree,
+    str(_PROCESS_EXPORT_DIRECTORY),
     ignore_errors=True,
 )
 _COLOR_PATHS = (
@@ -287,6 +301,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       font-weight: 700;
       text-decoration: none;
     }
+    .specimen-link + .specimen-link { margin-left: 1rem; }
     .specimen-link:hover { color: #d6ebff; text-decoration: underline; }
     form { display: grid; gap: 1rem; }
     label, legend {
@@ -753,6 +768,7 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       <h1>Type Design X-Ray</h1>
       <p class="lede">Local end-to-end preview. Every render is generated from the selected font by the Python exporter.</p>
       <a class="specimen-link" href="/specimen">Open Specimen Player &rarr;</a>
+      <a class="specimen-link" href="/process">Open Font Design Process Video &rarr;</a>
       <form id="controls">
         <div>
           <label for="fontPath">Font path</label>
@@ -2430,6 +2446,18 @@ class PreviewHandler(BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
+        if self.path in (
+            "/process",
+            "/process/",
+            "/font-design-process",
+            "/font-design-process/",
+        ):
+            self._send(
+                200,
+                process_page().encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
+            return
         if self.path == "/health":
             self._json(200, {"status": "ok"})
             return
@@ -2448,10 +2476,15 @@ class PreviewHandler(BaseHTTPRequestHandler):
         if self.path == "/api/specimen/export":
             self._export_specimen()
             return
+        if self.path == "/api/process/export":
+            self._export_process()
+            return
         request_handlers = {
             "/api/render": render_request,
             "/api/specimen/catalog": specimen_catalog_request,
             "/api/specimen/render": specimen_render_request,
+            "/api/process/catalog": process_catalog_request,
+            "/api/process/render": process_render_request,
         }
         request_handler = request_handlers.get(self.path)
         if request_handler is None:
@@ -2511,6 +2544,45 @@ class PreviewHandler(BaseHTTPRequestHandler):
             KeyError,
             RuntimeError,
         ) as exc:
+            self._json(400, {"error": str(exc)})
+            return
+        self._send(
+            200,
+            content,
+            str(result["content_type"]),
+            {"Content-Disposition": 'attachment; filename="{}"'.format(safe_name)},
+        )
+
+    def _export_process(self) -> None:
+        if not self._require_json_content_type():
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._json(400, {"error": "invalid Content-Length"})
+            return
+        if length <= 0 or length > _MAX_REQUEST_BYTES:
+            self._json(413, {"error": "request body is empty or too large"})
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            result = process_export_request(
+                payload,
+                output_dir=_PROCESS_EXPORT_DIRECTORY,
+            )
+            destination = Path(result["path"])
+            content = destination.read_bytes()
+            safe_name = re.sub(
+                r"[^A-Za-z0-9_.-]+",
+                "-",
+                str(result["name"]),
+            ).strip(".-") or "font-design-process.{}".format(
+                result["format"]
+            )
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            self._json(400, {"error": "invalid JSON: {}".format(exc)})
+            return
+        except (OSError, ValueError, KeyError, RuntimeError) as exc:
             self._json(400, {"error": str(exc)})
             return
         self._send(
