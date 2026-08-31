@@ -34,10 +34,25 @@ animated.
 - Everything visual is configurable — **85 style properties**, every one
   settable from a config file *or* the command line
 
+## Three tools, one app
+
+Starting the local preview opens one unified app with a switcher for three
+source-driven tools:
+
+| Tool | Best for | Output |
+| --- | --- | --- |
+| **X-Ray Blueprint** | Inspecting outlines, nodes, Bézier handles, spacing, kerning, and metrics for a typed string | SVG, PNG, PDF |
+| **Font Specimen** | Playing every designed symbol in the selected master as a two-up specimen | SVG/PNG frames, looping GIF, MP4 |
+| **Font Design Process** | Playing every authored layer of one glyph from skeleton to the active master | SVG/PNG layers, looping GIF, MP4 |
+
+The three tabs are available on every screen, so switching tools never requires
+another server or installation. All processing stays local to your computer.
+
 ## Download and set up
 
 You need **Python 3.9 or newer**. Every command below comes in two versions —
-use the one for your system.
+use the one for your system. The documented install and update commands are
+automatically tested on both macOS and Windows for every GitHub change.
 
 > **PowerShell:** run each command on its own line. Do not join two commands
 > into one line; PowerShell may otherwise treat the second command as an
@@ -268,6 +283,10 @@ when you stop the server.) It uses the same Python parsing, layout, compounding
 and SVG rendering code as the command-line tool, so what you see is what the
 exporter produces. Press Ctrl-C in the terminal to stop it.
 
+Use the three tabs at the top or in the main sidebar to move between **X-Ray
+Blueprint**, **Font Specimen**, and **Font Design Process**. Each tab includes
+a one-line description of what that tool is for.
+
 It gives you, live:
 
 - **A file picker** — click "Choose file…" to load a `.glyphs`, `.otf`, `.ttf`
@@ -308,7 +327,7 @@ It gives you, live:
 
 The same localhost server also includes a focused two-up specimen player at
 **[http://127.0.0.1:8765/specimen](http://127.0.0.1:8765/specimen)**. Open it
-from the link in the main preview, import a `.glyphs` source, and choose the
+with the **Font Specimen** tab, import a `.glyphs` source, and choose the
 master/style. Playback and media export always use that master's actual master
 layer; backup, Skeleton, and other named layers are never substituted.
 
@@ -367,9 +386,9 @@ SVG frame export does not require FFmpeg or a raster backend.
 #### 30-second public test
 
 After setup, start `type-design-xray-preview` with the command from **Local
-browser preview** above. Click **Open Specimen Player**, then **Import
-.glyphs** and choose the bundled `examples/BlueprintDemo.glyphs` file from
-this project. The player should show the `A / a` pair immediately. Turn on
+browser preview** above. Click **Font Specimen**, then **Import .glyphs** and
+choose the bundled `examples/BlueprintDemo.glyphs` file from this project. The
+player should show the `A / a` pair immediately. Turn on
 **Bézier**, change a color, click **Use Current**, and try **Frame SVG**. If the
 media dependencies above are installed, **Frame PNG**, **Export GIF**, and
 **Export MP4** should download too. This test needs no private font files.
@@ -378,8 +397,8 @@ media dependencies above are installed, **Frame PNG**, **Export GIF**, and
 
 The preview also includes a separate, additive single-glyph process player at
 **[http://127.0.0.1:8765/process](http://127.0.0.1:8765/process)**. Open it from
-**Open Font Design Process Video** on the main page. This player uses the left
-half of the specimen layout: a 540×766 layer frame with source-derived metadata
+the **Font Design Process** tab. This player uses the left half of the specimen
+layout: a 540×766 layer frame with source-derived metadata
 above one glyph, matching the vertical Type Design X-Ray process format.
 
 Import an editable `.glyphs` file, enter one character such as `A` or an exact
@@ -388,15 +407,16 @@ selected glyph's real authored layers by their unique Glyphs layer IDs. It
 starts with skeleton-like layers, preserves the authored order of remaining
 intermediate fills, backup layers, component-only layers, and duplicate layer
 names, then places the selected active master last. Layers associated with
-another master are not mixed into the sequence. Header metrics stay anchored
-to that active master as
-the construction changes, so the identity and spacing metadata do not jump
-between backup layers.
+another master are not mixed into the sequence. Header metrics stay anchored to
+that active master as the construction changes, so identity and spacing metadata
+do not jump between backup layers.
 
 Every intermediate frame uses **Speed** (0.2 seconds by default). The final
 active master always holds for exactly **3000 ms**, independent of that setting.
-The player does not autoplay. Previous, next, the layer menu, and play/pause all
-work on the exact same ordered sequence used by export.
+The player does not autoplay. After you click **Play**, it loops continuously:
+the final master holds for 3000 ms and then returns to the first skeleton layer.
+Previous, next, the layer menu, and play/pause all work on the exact same ordered
+sequence used by export.
 
 The controls also include:
 
@@ -417,7 +437,7 @@ dependencies documented in the Specimen Player section above.
 #### 30-second process-player test
 
 Start the local preview from the project folder—the directory containing
-`pyproject.toml`—and open **Font Design Process Video**. Import the bundled
+`pyproject.toml`—and open **Font Design Process**. Import the bundled
 `examples/BlueprintDemo.glyphs`, enter `a`, and click **Load**. The first frame
 is its open `Skeleton v1` layer and the final frame is the active `Regular`
 master. Click **Play** to verify the longer final hold, toggle **Handles**, and

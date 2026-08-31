@@ -40,6 +40,7 @@ from .specimen import (
 )
 from .specimen_export import export_request as specimen_export_request
 from .style import FRAME_MODES, METRIC_NAMES, SHAPES
+from .tool_nav import tool_switcher
 
 
 _MAX_REQUEST_BYTES = 1_000_000
@@ -293,16 +294,37 @@ _PAGE_TEMPLATE = r"""<!doctype html>
       font-size: .9rem;
       line-height: 1.45;
     }
-    .specimen-link {
-      display: inline-flex;
-      margin: -.55rem 0 1.35rem;
-      color: #9dccff;
-      font-size: .82rem;
-      font-weight: 700;
+    .tool-switcher {
+      display: grid;
+      gap: .55rem;
+      margin: -.35rem 0 1.4rem;
+    }
+    .tool-tab {
+      display: grid;
+      gap: .2rem;
+      padding: .75rem .8rem;
+      border: 1px solid #284565;
+      border-radius: .55rem;
+      background: #0a1829;
+      color: #dcecff;
       text-decoration: none;
     }
-    .specimen-link + .specimen-link { margin-left: 1rem; }
-    .specimen-link:hover { color: #d6ebff; text-decoration: underline; }
+    .tool-tab:hover { border-color: #5aa9ff; background: #10233a; }
+    .tool-tab.active {
+      border-color: #6db4ff;
+      background: rgba(53, 133, 226, .18);
+      box-shadow: inset 3px 0 0 #6db4ff;
+    }
+    .tool-name {
+      font-size: .8rem;
+      font-weight: 800;
+      letter-spacing: .025em;
+    }
+    .tool-summary {
+      color: #91a8c3;
+      font-size: .72rem;
+      line-height: 1.35;
+    }
     form { display: grid; gap: 1rem; }
     label, legend {
       display: block;
@@ -766,9 +788,8 @@ _PAGE_TEMPLATE = r"""<!doctype html>
   <div class="shell">
     <aside>
       <h1>Type Design X-Ray</h1>
-      <p class="lede">Local end-to-end preview. Every render is generated from the selected font by the Python exporter.</p>
-      <a class="specimen-link" href="/specimen">Open Specimen Player &rarr;</a>
-      <a class="specimen-link" href="/process">Open Font Design Process Video &rarr;</a>
+      <p class="lede">Three source-driven font tools in one local app. Switch tools at any time; your files stay on this computer.</p>
+      __TOOL_SWITCHER__
       <form id="controls">
         <div>
           <label for="fontPath">Font path</label>
@@ -2047,6 +2068,7 @@ def _preview_page() -> str:
     ).replace("<", "\\u003c")
     return (
         _PAGE_TEMPLATE
+        .replace("__TOOL_SWITCHER__", tool_switcher("xray"))
         .replace("__PRESET_OPTIONS__", "\n              ".join(options))
         .replace("__PRESET_COLORS__", colors_json)
         .replace("__PRESET_SIZES__", sizes_json)

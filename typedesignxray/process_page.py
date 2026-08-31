@@ -7,6 +7,8 @@ blueprint preview and two-up Specimen Player remain independent.
 
 from __future__ import annotations
 
+from .tool_nav import tool_switcher
+
 
 _PROCESS_PAGE = r"""<!doctype html>
 <html lang="en">
@@ -27,8 +29,24 @@ _PROCESS_PAGE = r"""<!doctype html>
       font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
     }
     button, input, select { font:inherit; }
+    .tool-switcher {
+      position:sticky; top:0; z-index:6; display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px;
+      padding:7px 14px; border-bottom:1px solid #292927; background:#080808;
+    }
+    .tool-tab {
+      min-width:0; display:grid; gap:2px; padding:7px 10px;
+      border:1px solid transparent; color:#b8b8b3; text-decoration:none;
+    }
+    .tool-tab:hover { border-color:#3d3d3a; background:#171715; color:#fff; }
+    .tool-tab.active { border-color:#686864; background:#1e1e1b; color:#fff; }
+    .tool-name { font-size:11px; font-weight:700; letter-spacing:.08em; }
+    .tool-summary {
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      color:#777; font-size:9px; letter-spacing:.02em;
+    }
     .toolbar {
-      position:sticky; top:0; z-index:5; min-height:58px; padding:9px 14px;
+      position:sticky; top:61px; z-index:5; min-height:58px; padding:9px 14px;
       display:flex; align-items:center; flex-wrap:wrap; gap:8px;
       border-bottom:1px solid #292927; background:rgba(10,10,10,.97);
     }
@@ -92,7 +110,7 @@ _PROCESS_PAGE = r"""<!doctype html>
     }
     #status.error { color:#ff8d85; }
     .viewport {
-      min-height:calc(100vh - 58px); display:grid; place-items:center;
+      min-height:calc(100vh - 119px); display:grid; place-items:center;
       padding:18px; overflow:auto;
     }
     .process-frame {
@@ -117,12 +135,16 @@ _PROCESS_PAGE = r"""<!doctype html>
       letter-spacing:.16em; text-align:center; padding:2rem;
     }
     @media (max-width:800px) {
+      .tool-switcher { position:static; grid-template-columns:1fr; }
+      .tool-summary { white-space:normal; }
+      .toolbar { top:0; }
       .viewport { place-items:start center; padding:8px; }
       #status { flex-basis:100%; margin-left:0; }
     }
   </style>
 </head>
 <body>
+  __TOOL_SWITCHER__
   <header class="toolbar" aria-label="Font design process controls">
     <label class="file-control">
       <input id="font-file" type="file" accept=".glyphs">
@@ -362,6 +384,16 @@ _PROCESS_PAGE = r"""<!doctype html>
         const seconds = Number(speed.value);
         return Math.min(1, Math.max(.08, Number.isFinite(seconds) ? seconds : .2)) * 1000;
       }
+      async function advanceLoop() {
+        const items = processLayers();
+        if (!items.length) return;
+        if (isFinalLayer(currentLayer())) {
+          layer.value = layerValue(items[0], 0);
+          await renderLayer({quiet:true});
+          return;
+        }
+        await move(1, true);
+      }
       function scheduleNext() {
         if (!playing) return;
         if (timer !== null) window.clearTimeout(timer);
@@ -370,7 +402,7 @@ _PROCESS_PAGE = r"""<!doctype html>
         timer = window.setTimeout(async () => {
           timer = null;
           if (!playing) return;
-          await move(1, true);
+          await advanceLoop();
           scheduleNext();
         }, delay);
       }
@@ -394,7 +426,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           playing = true;
           play.textContent = "PAUSE";
           play.setAttribute("aria-pressed", "true");
-          setStatus("PLAYING · FINAL ACTIVE LAYER HOLDS FOR 3000 MS");
+          setStatus("PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 3000 MS");
           scheduleNext();
         } catch (error) {
           if (
@@ -713,7 +745,9 @@ _PROCESS_PAGE = r"""<!doctype html>
 
 def process_page() -> str:
     """Return the self-contained Font Design Process Video player page."""
-    return _PROCESS_PAGE
+    return _PROCESS_PAGE.replace(
+        "__TOOL_SWITCHER__", tool_switcher("process")
+    )
 
 
 page = process_page

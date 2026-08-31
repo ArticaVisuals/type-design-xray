@@ -74,6 +74,11 @@ def test_process_playback_uses_recursive_timeout_and_exact_final_hold() -> None:
     assert "PREPARING ${items.length} LAYERS FOR TIMED PLAYBACK" in page
     assert "await Promise.all(" in page
     assert "items.map((item, index) => fetchLayerRender(item, index))" in page
+    assert "async function advanceLoop()" in page
+    assert "if (isFinalLayer(currentLayer()))" in page
+    assert "layer.value = layerValue(items[0], 0);" in page
+    assert "await advanceLoop();" in page
+    assert "PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 3000 MS" in page
 
 
 def test_process_player_caches_every_render_setting_for_exact_live_timing() -> None:
@@ -98,7 +103,6 @@ def test_process_page_guards_stale_render_and_quiet_playback_updates() -> None:
     assert "if (generation !== renderGeneration) return;" in page
     assert "const generation = ++catalogGeneration;" in page
     assert "if (generation !== catalogGeneration) return;" in page
-    assert "await move(1, true);" in page
     assert "if (!quiet && !playing)" in page
     assert 'role="status"' in page
 

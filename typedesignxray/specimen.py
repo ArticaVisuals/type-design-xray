@@ -27,6 +27,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from . import ir
 from . import parsers as _parsers
 from .parsers import load_font
+from .tool_nav import tool_switcher
 
 
 _SUPPORTED_SUFFIXES = frozenset(
@@ -922,8 +923,24 @@ _SPECIMEN_PAGE = r"""<!doctype html>
       font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
     }
     button, input, select { font:inherit; }
+    .tool-switcher {
+      position:sticky; top:0; z-index:6; display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px;
+      padding:7px 14px; border-bottom:1px solid #292927; background:#080808;
+    }
+    .tool-tab {
+      min-width:0; display:grid; gap:2px; padding:7px 10px;
+      border:1px solid transparent; color:#b8b8b3; text-decoration:none;
+    }
+    .tool-tab:hover { border-color:#3d3d3a; background:#171715; color:#fff; }
+    .tool-tab.active { border-color:#686864; background:#1e1e1b; color:#fff; }
+    .tool-name { font-size:11px; font-weight:700; letter-spacing:.08em; }
+    .tool-summary {
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      color:#777; font-size:9px; letter-spacing:.02em;
+    }
     .toolbar {
-      position:sticky; top:0; z-index:5; min-height:58px; padding:9px 14px;
+      position:sticky; top:61px; z-index:5; min-height:58px; padding:9px 14px;
       display:flex; align-items:center; flex-wrap:wrap; gap:8px;
       border-bottom:1px solid #292927; background:rgba(10,10,10,.97);
     }
@@ -962,7 +979,7 @@ _SPECIMEN_PAGE = r"""<!doctype html>
     .palette-reset { grid-column:1 / -1; justify-content:center; }
     #status { margin-left:auto; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#8e8e8b; font-size:11px; letter-spacing:.06em; }
     #status.error { color:#ff8d85; }
-    .viewport { min-height:calc(100vh - 58px); display:grid; place-items:center; padding:18px; overflow:auto; }
+    .viewport { min-height:calc(100vh - 119px); display:grid; place-items:center; padding:18px; overflow:auto; }
     .specimen {
       width:min(1080px,100%); aspect-ratio:1080 / 766; min-width:720px;
       display:grid; grid-template-columns:1fr 1fr; background:var(--specimen-bg); overflow:hidden;
@@ -982,12 +999,16 @@ _SPECIMEN_PAGE = r"""<!doctype html>
       color:#777; letter-spacing:.16em; text-align:center; padding:2rem;
     }
     @media (max-width:800px) {
+      .tool-switcher { position:static; grid-template-columns:1fr; }
+      .tool-summary { white-space:normal; }
+      .toolbar { top:0; }
       .viewport { place-items:start center; padding:8px; }
       #status { flex-basis:100%; margin-left:0; }
     }
   </style>
 </head>
 <body>
+  __TOOL_SWITCHER__
   <header class="toolbar" aria-label="Specimen controls">
     <label class="file-control"><input id="font-file" type="file" accept=".glyphs"><span>IMPORT .GLYPHS</span></label>
     <label class="labelled">STYLE <select id="master" disabled><option>—</option></select></label>
@@ -1330,7 +1351,9 @@ _SPECIMEN_PAGE = r"""<!doctype html>
 
 def specimen_page() -> str:
     """Return the self-contained HTML/CSS/JS specimen player."""
-    return _SPECIMEN_PAGE
+    return _SPECIMEN_PAGE.replace(
+        "__TOOL_SWITCHER__", tool_switcher("specimen")
+    )
 
 
 # A short alias is convenient for alternate hosts and keeps routing explicit.

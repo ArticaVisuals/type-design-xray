@@ -130,3 +130,23 @@ No P0, P1, or P2 visual mismatch remains for the requested spacing-metrics treat
 - Visual comparison: passed
 
 final result: passed
+
+## Unified three-tool navigation and looping playback — 2026-08-30
+
+- Added one shared switcher to X-Ray Blueprint, Font Specimen, and Font Design
+  Process. Each tab names and explains its distinct job, and the active tool is
+  exposed with `aria-current="page"`.
+- Confirmed the switcher is usable in the compact Codex browser viewport and
+  does not cover the existing controls or player canvas.
+- Confirmed Font Design Process playback continues after the 3000 ms active
+  master hold: `Regular — ACTIVE` returned to `Skeleton v1`, then advanced to
+  `Regular — ACTIVE` again without another Play click.
+- Browser console: no warnings or errors.
+- Automated suite: 333 passed, 4 skipped.
+- Clean wheel smoke: version 1.1.0 imports all three pages, exposes all three
+  tabs, and both installed preview/CLI entry points run.
+- Cross-platform workflow continues to build/test the wheel and documented
+  setup commands on macOS and Windows.
+- Visual capture: `/tmp/type-design-xray-three-tools.png`.
+
+final result: passed
