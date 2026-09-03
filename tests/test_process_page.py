@@ -1,13 +1,15 @@
 from typedesignxray.process_page import process_page
 
 
-def test_process_page_is_additive_half_width_player() -> None:
+def test_process_page_supports_single_and_landscape_word_players() -> None:
     page = process_page()
 
     assert page.startswith("<!doctype html>")
     assert "Font Design Process Video" in page
     assert "aspect-ratio:540 / 766" in page
     assert "width:min(540px,100%)" in page
+    assert "width:min(1080px,100%)" in page
+    assert "aspect-ratio:1080 / 766" in page
     assert 'grid-template-rows:246fr 520fr' in page
     assert 'accept=".glyphs"' in page
 
@@ -18,6 +20,8 @@ def test_process_page_exposes_expected_controls() -> None:
     for control_id in (
         "font-file",
         "master",
+        "content-mode",
+        "animation-mode",
         "glyph",
         "load-glyph",
         "previous",
@@ -38,6 +42,10 @@ def test_process_page_exposes_expected_controls() -> None:
 
     assert '<input id="bezier" type="checkbox" checked>' in page
     assert '<input id="handles" type="checkbox">' in page
+    assert '<option value="single" selected>SINGLE GLYPH</option>' in page
+    assert '<option value="word">WORD</option>' in page
+    assert '<option value="sequential" selected>SEQUENTIAL</option>' in page
+    assert '<option value="simultaneous">SIMULTANEOUS</option>' in page
     assert page.count("data-color=") == 8
 
 
@@ -50,7 +58,9 @@ def test_process_page_uses_process_api_contracts() -> None:
     assert 'fetch("/api/process/export"' in page
     for payload_key in (
         "font_path:fontPath",
-        "glyph:resolvedGlyphName()",
+        "content_mode:catalog.content_mode",
+        "text:resolvedInput()",
+        "animation_mode:catalog.animation_mode || animationMode.value",
         "layer_id:layerValue(selected, index)",
         "point_size:Number(pointSize.value)",
         "bezier:bezier.checked",
@@ -61,7 +71,7 @@ def test_process_page_uses_process_api_contracts() -> None:
         assert payload_key in page
 
 
-def test_process_playback_uses_recursive_timeout_and_exact_final_hold() -> None:
+def test_process_playback_loops_single_glyph_and_stops_word_after_final_hold() -> None:
     page = process_page()
 
     assert "const FINAL_HOLD_MS = 1000;" in page
@@ -71,14 +81,18 @@ def test_process_playback_uses_recursive_timeout_and_exact_final_hold() -> None:
     assert "setInterval" not in page
     assert 'aria-pressed="false"' in page
     assert "start();\n      syncHandles();" not in page
-    assert "PREPARING ${items.length} LAYERS FOR TIMED PLAYBACK" in page
+    assert 'isWordCatalog() ? "FRAMES" : "LAYERS"' in page
     assert "await Promise.all(" in page
     assert "items.map((item, index) => fetchLayerRender(item, index))" in page
-    assert "async function advanceLoop()" in page
+    assert "async function advancePlayback()" in page
     assert "if (isFinalLayer(currentLayer()))" in page
+    assert "if (isWordCatalog())" in page
+    assert "completeWordPlayback();" in page
+    assert 'setStatus("COMPLETE WORD · FINAL HOLD 1000 MS · PLAYBACK STOPPED")' in page
     assert "layer.value = layerValue(items[0], 0);" in page
-    assert "await advanceLoop();" in page
+    assert "if (await advancePlayback()) scheduleNext();" in page
     assert "PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 1000 MS" in page
+    assert "STOPS AFTER FINAL 1000 MS HOLD" in page
 
 
 def test_process_player_caches_every_render_setting_for_exact_live_timing() -> None:
@@ -90,7 +104,7 @@ def test_process_player_caches_every_render_setting_for_exact_live_timing() -> N
     assert "requestGeneration," in page
     assert "fontPath," in page
     assert "master.value," in page
-    assert "resolvedGlyphName()," in page
+    assert "resolvedInput()," in page
     assert "if (renderCache.has(key)) return renderCache.get(key);" in page
     assert "if (requestGeneration === catalogGeneration) renderCache.set(key, data);" in page
     assert "clearRenderCache();" in page

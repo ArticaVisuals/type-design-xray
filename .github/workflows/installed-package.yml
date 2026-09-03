@@ -55,9 +55,9 @@ jobs:
       - name: Check installed package
         run: |
           python -m pip check
-          python -I -c "from importlib.metadata import version; import typedesignxray; from typedesignxray.config import available_presets; assert typedesignxray.__version__ == version('type-design-xray') == '1.1.0'; assert available_presets() == ['blueprint', 'contrast', 'drafting', 'light']"
+          python -I -c "from importlib.metadata import version; import typedesignxray; from typedesignxray.config import available_presets; assert typedesignxray.__version__ == version('type-design-xray') == '1.2.0'; assert available_presets() == ['blueprint', 'contrast', 'drafting', 'light']"
           python -I -c "from pathlib import Path; from typedesignxray.specimen import catalog_request, render_request, specimen_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source)}); assert catalog['sequence'][0]['label'] == 'A / a'; rendered = render_request({'font_path': str(source), 'glyphs': ['A', 'a'], 'mode': 'xray'}); assert rendered['compounded'] and len(rendered['renders']) == 2 and 'Specimen Player' in specimen_page()"
-          python -I -c "from pathlib import Path; from typedesignxray.process import catalog_request, render_request; from typedesignxray.process_page import process_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source), 'glyph': 'a'}); assert catalog['layers'][0]['name'] == 'Skeleton v1' and catalog['layers'][-1]['is_final'] and catalog['final_hold_ms'] == 1000; rendered = render_request({'font_path': str(source), 'glyph': 'a', 'layer_id': catalog['layers'][0]['layer_id'], 'bezier': False, 'handles': False}); assert 'data-mode=\"outline\"' in rendered['svg'] and 'Font Design Process Video' in process_page()"
+          python -I -c "from pathlib import Path; from typedesignxray.process import catalog_request, render_request; from typedesignxray.process_page import process_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source), 'glyph': 'a'}); assert catalog['layers'][0]['name'] == 'Skeleton v1' and catalog['layers'][-1]['is_final'] and catalog['final_hold_ms'] == 1000; rendered = render_request({'font_path': str(source), 'glyph': 'a', 'layer_id': catalog['layers'][0]['layer_id'], 'bezier': False, 'handles': False}); word = catalog_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'animation_mode': 'sequential'}); simultaneous = catalog_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'animation_mode': 'simultaneous'}); word_render = render_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'animation_mode': 'simultaneous', 'layer_id': simultaneous['layers'][0]['layer_id'], 'bezier': False}); assert word['frame_size'] == {'width': 1080, 'height': 766} and word['layers'][0]['glyph_layers'][1] is None and word['layers'][-1]['is_final']; assert all(layer_id is not None for layer_id in simultaneous['layers'][0]['glyph_layers']) and word_render['svg'].count('class=\"word-glyph\"') == 2; assert 'data-mode=\"outline\"' in rendered['svg'] and 'Font Design Process Video' in process_page()"
           python -I -c "from typedesignxray.tool_nav import tool_switcher; assert tool_switcher('xray').count('tool-tab') == 3 and 'every designed symbol' in tool_switcher('specimen')"
 
       - name: Smoke-test installed commands
@@ -91,7 +91,7 @@ jobs:
         if: runner.os == 'macOS' && matrix.python-version == '3.9'
         shell: bash
         run: |
-          python - <<'PY'
+          python -I - <<'PY'
           import os
           from pathlib import Path
           from typedesignxray.process import catalog_request as process_catalog
@@ -106,6 +106,8 @@ jobs:
           process_png = output / "process-layer.png"
           process_gif = output / "process.gif"
           process_mp4 = output / "process.mp4"
+          word_gif = output / "process-word.gif"
+          word_mp4 = output / "process-word.mp4"
           export_frame(source, png, frame_number=1, format_name="png", xray=True)
           export_specimen(source, gif, format_name="gif", start_frame=1, end_frame=1, xray=True)
           export_specimen(source, mp4, format_name="mp4", start_frame=1, end_frame=1, xray=True)
@@ -119,12 +121,29 @@ jobs:
           process_export(dict(process_common, format="png", output_path=str(process_png), layer_id=process["layers"][0]["layer_id"]))
           process_export(dict(process_common, format="gif", output_path=str(process_gif), speed=0.2))
           process_export(dict(process_common, format="mp4", output_path=str(process_mp4), speed=0.2))
+          word_common = {
+              "font_path": str(source),
+              "content_mode": "word",
+              "text": "Aa",
+              "animation_mode": "sequential",
+              "bezier": True,
+              "handles": True,
+          }
+          word_gif_result = process_export(dict(word_common, format="gif", output_path=str(word_gif), speed=0.2))
+          word_mp4_result = process_export(dict(word_common, format="mp4", output_path=str(word_mp4), speed=0.2))
           assert png.read_bytes().startswith(b"\x89PNG")
           assert gif.read_bytes().startswith(b"GIF89a")
           assert mp4.stat().st_size > 100
           assert process_png.read_bytes().startswith(b"\x89PNG")
           assert process_gif.read_bytes().startswith(b"GIF89a")
           assert process_mp4.stat().st_size > 100
+          assert word_gif.read_bytes().startswith(b"GIF89a")
+          assert b"NETSCAPE2.0" not in word_gif.read_bytes()
+          assert word_mp4.stat().st_size > 100
+          assert word_gif_result["loop"] is False
+          assert word_mp4_result["loop"] is False
+          assert (word_gif_result["width"], word_gif_result["height"]) == (2160, 1532)
+          assert (word_mp4_result["width"], word_mp4_result["height"]) == (2160, 1532)
           PY
 
       - name: Verify documented Windows PowerShell setup

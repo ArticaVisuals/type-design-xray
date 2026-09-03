@@ -72,9 +72,10 @@ _PROCESS_PAGE = r"""<!doctype html>
       font-size:11px; letter-spacing:.08em;
     }
     .glyph-form { display:flex; align-items:center; gap:6px; margin:0; }
-    #glyph { width:124px; }
+    #glyph { width:180px; }
     #master { max-width:190px; }
     #layer { max-width:250px; }
+    #content-mode, #animation-mode { max-width:180px; }
     input[type="number"] { width:82px; }
     .toggle {
       display:inline-flex; align-items:center; gap:7px;
@@ -118,6 +119,9 @@ _PROCESS_PAGE = r"""<!doctype html>
       display:grid; grid-template-rows:246fr 520fr;
       padding:0 18px; background:var(--process-bg); overflow:hidden;
     }
+    .process-frame.word-mode {
+      width:min(1080px,100%); aspect-ratio:1080 / 766;
+    }
     .metadata {
       display:flex; align-items:flex-start; margin:0;
       padding-top:18px; padding-bottom:10px;
@@ -153,18 +157,31 @@ _PROCESS_PAGE = r"""<!doctype html>
     <label class="labelled">STYLE
       <select id="master" disabled><option>—</option></select>
     </label>
+    <label class="labelled">MODE
+      <select id="content-mode">
+        <option value="single" selected>SINGLE GLYPH</option>
+        <option value="word">WORD</option>
+      </select>
+    </label>
     <form id="glyph-form" class="glyph-form">
-      <label class="labelled" for="glyph">GLYPH</label>
+      <label id="input-label" class="labelled" for="glyph">GLYPH</label>
       <input id="glyph" type="text" inputmode="text" autocomplete="off"
-             autocapitalize="off" spellcheck="false" placeholder="A or Aacute"
+             autocapitalize="off" spellcheck="false" maxlength="64"
+             placeholder="A or Aacute"
              aria-describedby="glyph-hint">
       <button id="load-glyph" type="submit" disabled>LOAD</button>
       <span id="glyph-hint" hidden>Enter one character or an exact glyph name.</span>
     </form>
+    <label id="animation-mode-control" class="labelled" hidden>ANIMATION
+      <select id="animation-mode">
+        <option value="sequential" selected>SEQUENTIAL</option>
+        <option value="simultaneous">SIMULTANEOUS</option>
+      </select>
+    </label>
     <button id="previous" type="button" aria-label="Previous layer" disabled>←</button>
     <button id="play" type="button" aria-pressed="false" disabled>PLAY</button>
     <button id="next" type="button" aria-label="Next layer" disabled>→</button>
-    <label class="labelled">LAYER
+    <label class="labelled"><span id="step-label">LAYER</span>
       <select id="layer" disabled><option>—</option></select>
     </label>
     <label class="labelled">SIZE
@@ -212,13 +229,18 @@ _PROCESS_PAGE = r"""<!doctype html>
       const $ = (id) => document.getElementById(id);
       const fileInput = $("font-file");
       const master = $("master");
+      const contentMode = $("content-mode");
+      const animationMode = $("animation-mode");
+      const animationModeControl = $("animation-mode-control");
       const glyphForm = $("glyph-form");
       const glyphInput = $("glyph");
+      const inputLabel = $("input-label");
       const loadGlyph = $("load-glyph");
       const previous = $("previous");
       const play = $("play");
       const next = $("next");
       const layer = $("layer");
+      const stepLabel = $("step-label");
       const pointSize = $("point-size");
       const speed = $("speed");
       const bezier = $("bezier");
@@ -301,6 +323,27 @@ _PROCESS_PAGE = r"""<!doctype html>
         if (!catalog) return [];
         return Array.isArray(catalog.layers) ? catalog.layers : (catalog.sequence || []);
       }
+      function requestedContentMode() {
+        return contentMode.value === "word" ? "word" : "single";
+      }
+      function isWordCatalog() {
+        return catalog?.content_mode === "word";
+      }
+      function resolvedInput() {
+        if (isWordCatalog()) return catalog.text || glyphInput.value.trim();
+        return catalog?.glyph_name || catalog?.glyph?.name || glyphInput.value.trim();
+      }
+      function syncContentMode() {
+        const word = requestedContentMode() === "word";
+        animationModeControl.hidden = !word;
+        animationMode.disabled = !word;
+        inputLabel.textContent = word ? "WORD" : "GLYPH";
+        glyphInput.placeholder = word ? "Caliper" : "A or Aacute";
+        glyphInput.maxLength = word ? 32 : 64;
+        stepLabel.textContent = word ? "FRAME" : "LAYER";
+        exportSvg.textContent = word ? "FRAME SVG" : "LAYER SVG";
+        exportPng.textContent = word ? "FRAME PNG" : "LAYER PNG";
+      }
       function layerValue(item, index) {
         return String(item.layer_id ?? item.id ?? index);
       }
@@ -323,7 +366,7 @@ _PROCESS_PAGE = r"""<!doctype html>
         return Boolean(item?.is_final) || (items.length > 0 && index === items.length - 1);
       }
       function resolvedGlyphName() {
-        return catalog?.glyph_name || catalog?.glyph?.name || glyphInput.value.trim();
+        return resolvedInput();
       }
       function formattedMetric(value) {
         if (value == null || value === "") return "—";
@@ -358,6 +401,25 @@ _PROCESS_PAGE = r"""<!doctype html>
           ` →|:      ${formattedUpm(glyph.rsb)} upm`
         ].join("\n");
       }
+      function wordMetricText(font) {
+        const family = String(font.family_name || catalog?.family_name || "UNTITLED").toUpperCase();
+        const style = String(font.master_name || catalog?.master_name || "REGULAR").toUpperCase();
+        const selected = currentLayer() || {};
+        const names = (font.glyphs || catalog?.glyphs || []).map((item) => item.name).join(" / ");
+        return [
+          `TYPEFACE: ${family}`,
+          "",
+          `STYLE:    ${style}`,
+          `SIZE:     ${formattedMetric(pointSize.value)} pt`,
+          "",
+          `TEXT:     ${font.text || catalog?.text || glyphInput.value.trim()}`,
+          `GLYPHS:   ${names}`,
+          `PROCESS:  ${String(font.animation_mode || catalog?.animation_mode || "sequential").toUpperCase()}`,
+          "",
+          `FRAME:    ${layerIndex() + 1} / ${processLayers().length}`,
+          `STATE:    ${isFinalLayer(selected) ? "COMPLETE" : (selected.name || "IN PROGRESS")}`
+        ].join("\n");
+      }
       function syncHandles() {
         handles.disabled = !bezier.checked;
       }
@@ -384,15 +446,28 @@ _PROCESS_PAGE = r"""<!doctype html>
         const seconds = Number(speed.value);
         return Math.min(1, Math.max(.08, Number.isFinite(seconds) ? seconds : .2)) * 1000;
       }
-      async function advanceLoop() {
+      function completeWordPlayback() {
+        playing = false;
+        if (timer !== null) window.clearTimeout(timer);
+        timer = null;
+        play.textContent = "PLAY";
+        play.setAttribute("aria-pressed", "false");
+        setStatus("COMPLETE WORD · FINAL HOLD 1000 MS · PLAYBACK STOPPED");
+      }
+      async function advancePlayback() {
         const items = processLayers();
-        if (!items.length) return;
+        if (!items.length) return false;
         if (isFinalLayer(currentLayer())) {
+          if (isWordCatalog()) {
+            completeWordPlayback();
+            return false;
+          }
           layer.value = layerValue(items[0], 0);
           await renderLayer({quiet:true});
-          return;
+          return true;
         }
         await move(1, true);
+        return true;
       }
       function scheduleNext() {
         if (!playing) return;
@@ -402,18 +477,20 @@ _PROCESS_PAGE = r"""<!doctype html>
         timer = window.setTimeout(async () => {
           timer = null;
           if (!playing) return;
-          await advanceLoop();
-          scheduleNext();
+          if (await advancePlayback()) scheduleNext();
         }, delay);
       }
       async function start() {
         if (processLayers().length < 2) return;
         stop();
         const items = processLayers();
+        if (isWordCatalog() && isFinalLayer(currentLayer())) {
+          layer.value = layerValue(items[0], 0);
+        }
         const selectedCatalogGeneration = catalogGeneration;
         const selectedSettings = renderSettingsSignature();
         play.disabled = true;
-        setStatus(`PREPARING ${items.length} LAYERS FOR TIMED PLAYBACK…`);
+        setStatus(`PREPARING ${items.length} ${isWordCatalog() ? "FRAMES" : "LAYERS"} FOR TIMED PLAYBACK…`);
         try {
           await Promise.all(
             items.map((item, index) => fetchLayerRender(item, index))
@@ -426,7 +503,9 @@ _PROCESS_PAGE = r"""<!doctype html>
           playing = true;
           play.textContent = "PAUSE";
           play.setAttribute("aria-pressed", "true");
-          setStatus("PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 1000 MS");
+          setStatus(isWordCatalog()
+            ? `PLAYING WORD · ${String(catalog.animation_mode || "sequential").toUpperCase()} · STOPS AFTER FINAL 1000 MS HOLD`
+            : "PLAYING · LOOPING · FINAL ACTIVE LAYER HOLDS FOR 1000 MS");
           scheduleNext();
         } catch (error) {
           if (
@@ -442,18 +521,22 @@ _PROCESS_PAGE = r"""<!doctype html>
       }
       async function loadCatalog(selectedMaster = "") {
         const requestedGlyph = glyphInput.value.trim();
+        const requestedMode = requestedContentMode();
         if (!fontPath) throw new Error("Import a Glyphs file first");
-        if (!requestedGlyph) throw new Error("Enter a character or glyph name");
+        if (!requestedGlyph) throw new Error(requestedMode === "word" ? "Enter a word" : "Enter a character or glyph name");
         stop();
         setReady(false);
-        setStatus("READING GLYPH LAYERS…");
+        setStatus(requestedMode === "word" ? "BUILDING WORD PROCESS TIMELINE…" : "READING GLYPH LAYERS…");
         const generation = ++catalogGeneration;
         let nextCatalog;
         try {
           nextCatalog = await jsonRequest("/api/process/catalog", {
             font_path:fontPath,
             master:selectedMaster,
-            glyph:requestedGlyph
+            content_mode:requestedMode,
+            glyph:requestedGlyph,
+            text:requestedGlyph,
+            animation_mode:animationMode.value
           });
         } catch (error) {
           if (generation !== catalogGeneration) return;
@@ -468,12 +551,13 @@ _PROCESS_PAGE = r"""<!doctype html>
           label:item.name ?? item.master_name ?? item.id
         })), catalog.selected_master_id || masters[0]?.id || masters[0]?.master_id);
         const items = processLayers();
-        if (!items.length) throw new Error("This glyph contains no process layers");
+        if (!items.length) throw new Error(requestedMode === "word" ? "This word produced no process frames" : "This glyph contains no process layers");
         populate(layer, items.map((item, index) => ({
           value:layerValue(item, index),
           label:layerLabel(item, index)
         })), layerValue(items[0], 0));
-        glyphInput.value = resolvedGlyphName();
+        glyphInput.value = resolvedInput();
+        processFrame.classList.toggle("word-mode", isWordCatalog());
         setReady(true);
         await renderLayer();
       }
@@ -483,7 +567,9 @@ _PROCESS_PAGE = r"""<!doctype html>
           requestGeneration,
           fontPath,
           master.value,
-          resolvedGlyphName(),
+          resolvedInput(),
+          catalog?.content_mode,
+          catalog?.animation_mode,
           layerValue(selected, index),
           renderSettingsSignature()
         ]);
@@ -491,7 +577,10 @@ _PROCESS_PAGE = r"""<!doctype html>
         const data = await jsonRequest("/api/process/render", {
           font_path:fontPath,
           master:master.value,
-          glyph:resolvedGlyphName(),
+          content_mode:catalog.content_mode,
+          glyph:resolvedInput(),
+          text:resolvedInput(),
+          animation_mode:catalog.animation_mode || animationMode.value,
           layer_id:layerValue(selected, index),
           point_size:Number(pointSize.value),
           bezier:bezier.checked,
@@ -511,10 +600,10 @@ _PROCESS_PAGE = r"""<!doctype html>
           if (generation !== renderGeneration) return;
           const render = data.render || data.renders?.[0] || data;
           const glyph = render.glyph || data.glyph || catalog.glyph || {};
-          metadata.textContent = metricText(data, glyph);
+          metadata.textContent = isWordCatalog() ? wordMetricText(data) : metricText(data, glyph);
           glyphStage.innerHTML = render.svg || data.svg || "";
           if (!quiet && !playing) {
-            setStatus(`${String(data.family_name || catalog.family_name || "FONT").toUpperCase()} · ${layerLabel(selected, layerIndex())}${isFinalLayer(selected) ? " · FINAL ACTIVE" : ""}`);
+            setStatus(`${String(data.family_name || catalog.family_name || "FONT").toUpperCase()} · ${layerLabel(selected, layerIndex())}${isFinalLayer(selected) ? (isWordCatalog() ? " · WORD COMPLETE" : " · FINAL ACTIVE") : ""}`);
           }
         } catch (error) {
           if (generation === renderGeneration) {
@@ -532,13 +621,13 @@ _PROCESS_PAGE = r"""<!doctype html>
       }
       function downloadName(format) {
         const family = catalog?.family_name || "font";
-        const glyph = resolvedGlyphName() || "glyph";
+        const glyph = resolvedInput() || "glyph";
         const base = `${family}-${glyph}-design-process`
           .replace(/[^A-Za-z0-9_.-]+/g, "-")
           .replace(/^[.-]+|[.-]+$/g, "") || "font-design-process";
         if (format === "svg" || format === "png") {
           const frame = String(layerIndex() + 1).padStart(2, "0");
-          return `${base}-layer-${frame}.${format}`;
+          return `${base}-${isWordCatalog() ? "frame" : "layer"}-${frame}.${format}`;
         }
         return `${base}.${format}`;
       }
@@ -553,15 +642,18 @@ _PROCESS_PAGE = r"""<!doctype html>
         stop();
         exportButtons.forEach((button) => { button.disabled = true; });
         const selection = frameFormat
-          ? `LAYER ${layerIndex() + 1}`
-          : `${processLayers().length} LAYERS`;
+          ? `${isWordCatalog() ? "FRAME" : "LAYER"} ${layerIndex() + 1}`
+          : `${processLayers().length} ${isWordCatalog() ? "FRAMES" : "LAYERS"}`;
         setStatus(`EXPORTING ${selection} AS ${format.toUpperCase()}…`);
         try {
           const selected = currentLayer();
           const payload = {
             font_path:fontPath,
             master:master.value,
-            glyph:resolvedGlyphName(),
+            content_mode:catalog.content_mode,
+            glyph:resolvedInput(),
+            text:resolvedInput(),
+            animation_mode:catalog.animation_mode || animationMode.value,
             format,
             output_name:downloadName(format),
             point_size:Number(pointSize.value),
@@ -644,8 +736,10 @@ _PROCESS_PAGE = r"""<!doctype html>
             }
           } else {
             glyphInput.focus();
-            setStatus("SOURCE READY · ENTER A GLYPH");
-            glyphStage.innerHTML = '<div class="empty">ENTER A CHARACTER<br>OR GLYPH NAME</div>';
+            setStatus(requestedContentMode() === "word" ? "SOURCE READY · ENTER A WORD" : "SOURCE READY · ENTER A GLYPH");
+            glyphStage.innerHTML = requestedContentMode() === "word"
+              ? '<div class="empty">ENTER A WORD</div>'
+              : '<div class="empty">ENTER A CHARACTER<br>OR GLYPH NAME</div>';
           }
         } catch (error) {
           if (generation !== catalogGeneration) return;
@@ -657,6 +751,29 @@ _PROCESS_PAGE = r"""<!doctype html>
       glyphForm.addEventListener("submit", (event) => {
         event.preventDefault();
         loadCatalog(master.disabled ? "" : master.value).catch((error) => setStatus(error.message, true));
+      });
+      contentMode.addEventListener("change", () => {
+        stop();
+        catalog = null;
+        clearRenderCache();
+        setReady(false);
+        syncContentMode();
+        processFrame.classList.toggle("word-mode", requestedContentMode() === "word");
+        if (fontPath && glyphInput.value.trim()) {
+          loadCatalog(master.disabled ? "" : master.value).catch((error) => setStatus(error.message, true));
+        } else {
+          metadata.textContent = "TYPEFACE: —";
+          glyphStage.innerHTML = requestedContentMode() === "word"
+            ? '<div class="empty">IMPORT A GLYPHS FILE<br>AND ENTER A WORD</div>'
+            : '<div class="empty">IMPORT A GLYPHS FILE<br>AND ENTER A GLYPH</div>';
+        }
+      });
+      animationMode.addEventListener("change", () => {
+        if (requestedContentMode() !== "word") return;
+        stop();
+        if (fontPath && glyphInput.value.trim()) {
+          loadCatalog(master.disabled ? "" : master.value).catch((error) => setStatus(error.message, true));
+        }
       });
       master.addEventListener("change", () => {
         loadCatalog(master.value).catch((error) => setStatus(error.message, true));
@@ -734,6 +851,7 @@ _PROCESS_PAGE = r"""<!doctype html>
         }
         if (event.key === "Escape") stop();
       });
+      syncContentMode();
       syncHandles();
       applyPaletteStyles();
     })();

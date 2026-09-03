@@ -217,6 +217,47 @@ def test_process_page_and_layer_api_routes_are_additive() -> None:
     assert ET.fromstring(rendered["svg"]).get("data-mode") == "outline"
 
 
+def test_process_word_api_exposes_both_non_looping_timelines() -> None:
+    for animation_mode in ("sequential", "simultaneous"):
+        status, catalog = _post_json(
+            "/api/process/catalog",
+            {
+                "font_path": str(EXAMPLE),
+                "content_mode": "word",
+                "text": "Aa",
+                "animation_mode": animation_mode,
+            },
+        )
+        assert status == 200
+        assert catalog["content_mode"] == "word"
+        assert catalog["animation_mode"] == animation_mode
+        assert catalog["frame_size"] == {"width": 1080, "height": 766}
+
+        if animation_mode == "sequential":
+            assert catalog["layers"][0]["glyph_layers"][1] is None
+        else:
+            assert all(
+                layer_id is not None
+                for layer_id in catalog["layers"][0]["glyph_layers"]
+            )
+
+        status, rendered = _post_json(
+            "/api/process/render",
+            {
+                "font_path": str(EXAMPLE),
+                "content_mode": "word",
+                "text": "Aa",
+                "animation_mode": animation_mode,
+                "layer_id": catalog["layers"][-1]["layer_id"],
+                "bezier": False,
+                "handles": False,
+            },
+        )
+        assert status == 200
+        assert rendered["layer"]["is_final"] is True
+        assert rendered["svg"].count('class="word-glyph"') == 2
+
+
 def test_specimen_export_route_streams_a_download(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

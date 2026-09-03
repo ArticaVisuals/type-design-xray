@@ -6,9 +6,10 @@ records containing an ``svg`` field, or arbitrary layer records plus a
 ``renderer`` callback.  That boundary keeps animation encoding reusable and
 avoids a process-player/exporter import cycle.
 
-Logical process frames are 540 x 766.  Animated GIF and MP4 output is rendered
-at 2x (1080 x 1532).  Every non-final layer uses the caller-selected delay;
-the final active-master layer is always held for exactly 1000 milliseconds.
+Single-glyph process frames are 540 x 766; composed-word frames are 1080 x 766.
+Animated GIF and MP4 output is rendered at 2x. Every non-final layer uses the
+caller-selected delay; the completed final state is always held for exactly
+1000 milliseconds. Single-glyph GIFs may loop, while word exports can stop.
 """
 
 from __future__ import annotations
@@ -114,7 +115,11 @@ def _svg_dimension(value: Optional[str]) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
-def _validate_frame_svg(svg: Any) -> str:
+def _validate_frame_svg(
+    svg: Any,
+    frame_width: int = FRAME_WIDTH,
+    frame_height: int = FRAME_HEIGHT,
+) -> str:
     if not isinstance(svg, str) or not svg.strip():
         raise ValueError("each process frame must render to a non-empty SVG string")
     try:
@@ -136,37 +141,42 @@ def _validate_frame_svg(svg: Any) -> str:
             and all(math.isfinite(value) for value in values)
             and math.isclose(values[0], 0.0)
             and math.isclose(values[1], 0.0)
-            and math.isclose(values[2], float(FRAME_WIDTH))
-            and math.isclose(values[3], float(FRAME_HEIGHT))
+            and math.isclose(values[2], float(frame_width))
+            and math.isclose(values[3], float(frame_height))
         )
         if not valid_view_box:
             raise ValueError(
                 "process frame viewBox must be 0 0 {} {}".format(
-                    FRAME_WIDTH, FRAME_HEIGHT
+                    frame_width, frame_height
                 )
             )
         return svg
 
     width = _svg_dimension(root.get("width"))
     height = _svg_dimension(root.get("height"))
-    if width != FRAME_WIDTH or height != FRAME_HEIGHT:
+    if width != frame_width or height != frame_height:
         raise ValueError(
-            "process frame must be {} x {}".format(FRAME_WIDTH, FRAME_HEIGHT)
+            "process frame must be {} x {}".format(frame_width, frame_height)
         )
     return svg
 
 
 def _record_svg(
-    record: Any, renderer: Optional[Callable[[Any], str]]
+    record: Any,
+    renderer: Optional[Callable[[Any], str]],
+    frame_width: int,
+    frame_height: int,
 ) -> str:
     if renderer is not None:
-        return _validate_frame_svg(renderer(record))
+        return _validate_frame_svg(renderer(record), frame_width, frame_height)
     if isinstance(record, str):
-        return _validate_frame_svg(record)
+        return _validate_frame_svg(record, frame_width, frame_height)
     if isinstance(record, Mapping) and "svg" in record:
-        return _validate_frame_svg(record["svg"])
+        return _validate_frame_svg(record["svg"], frame_width, frame_height)
     if hasattr(record, "svg"):
-        return _validate_frame_svg(getattr(record, "svg"))
+        return _validate_frame_svg(
+            getattr(record, "svg"), frame_width, frame_height
+        )
     raise ValueError(
         "process frame records require an svg field or a renderer callback"
     )
@@ -192,6 +202,8 @@ def _master_marker(record: Any) -> Tuple[bool, bool]:
 def _resolve_frames(
     records: Sequence[Any],
     renderer: Optional[Callable[[Any], str]],
+    frame_width: int,
+    frame_height: int,
 ) -> Tuple[_ResolvedFrame, ...]:
     if renderer is not None and not callable(renderer):
         raise ValueError("renderer must be callable")
@@ -204,7 +216,9 @@ def _resolve_frames(
     svgs: List[str] = []
     markers: List[Tuple[bool, bool]] = []
     for record in items:
-        svgs.append(_record_svg(record, renderer))
+        svgs.append(
+            _record_svg(record, renderer, frame_width, frame_height)
+        )
         markers.append(_master_marker(record))
 
     explicit = any(provided for provided, _ in markers)
@@ -287,6 +301,7 @@ def _encode_timed_frames(
     manifest: Path,
     destination: Path,
     format_name: str,
+    loop: bool = True,
 ) -> None:
     command = [
         ffmpeg,
@@ -311,7 +326,7 @@ def _encode_timed_frames(
                 "-vsync",
                 "vfr",
                 "-loop",
-                "0",
+                "0" if loop else "-1",
                 # Keep the repeated final packet to one GIF tick.  Its 10 ms
                 # is compensated in the final manifest duration so one pass
                 # still ends at the requested timestamp.
@@ -376,9 +391,11 @@ def export_process_frame(
     output_path: Any,
     *,
     format_name: Optional[str] = None,
+    frame_width: int = FRAME_WIDTH,
+    frame_height: int = FRAME_HEIGHT,
 ) -> Dict[str, Any]:
-    """Export one logical 540 x 766 process frame as SVG or PNG."""
-    validated_svg = _validate_frame_svg(svg)
+    """Export one logical process frame as SVG or PNG."""
+    validated_svg = _validate_frame_svg(svg, frame_width, frame_height)
     provisional = Path(os.path.expanduser(os.fspath(output_path))).resolve()
     resolved_format = _normalise_format(format_name, provisional, ("png", "svg"))
     destination = _destination_path(
@@ -389,7 +406,7 @@ def export_process_frame(
         destination.write_text(validated_svg, encoding="utf-8")
     else:
         try:
-            svg_to_png(validated_svg, destination, width=FRAME_WIDTH)
+            svg_to_png(validated_svg, destination, width=frame_width)
         except Exception as exc:
             raise ProcessExportError(
                 "Unable to rasterize process frame: {}".format(exc)
@@ -400,8 +417,8 @@ def export_process_frame(
         "content_type": _CONTENT_TYPES[resolved_format],
         "format": resolved_format,
         "frame_count": 1,
-        "width": FRAME_WIDTH,
-        "height": FRAME_HEIGHT,
+        "width": frame_width,
+        "height": frame_height,
     }
 
 
@@ -412,6 +429,10 @@ def export_process_animation(
     renderer: Optional[Callable[[Any], str]] = None,
     format_name: Optional[str] = None,
     frame_delay_ms: Any = DEFAULT_FRAME_DELAY_MS,
+    frame_width: int = FRAME_WIDTH,
+    frame_height: int = FRAME_HEIGHT,
+    animation_scale: int = ANIMATION_SCALE,
+    loop: bool = True,
 ) -> Dict[str, Any]:
     """Export ordered process frames as a variable-duration GIF or MP4.
 
@@ -420,7 +441,13 @@ def export_process_animation(
     Records that expose ``is_master`` must identify exactly one master and put
     it last.  A plain SVG sequence implicitly treats its last frame as master.
     """
-    resolved_frames = _resolve_frames(frames, renderer)
+    if isinstance(loop, bool) is False:
+        raise ValueError("loop must be true or false")
+    if frame_width <= 0 or frame_height <= 0 or animation_scale <= 0:
+        raise ValueError("frame dimensions and animation_scale must be positive")
+    resolved_frames = _resolve_frames(
+        frames, renderer, frame_width, frame_height
+    )
     delay = _frame_delay(frame_delay_ms)
     durations_ms = [delay] * len(resolved_frames)
     durations_ms[-1] = FINAL_HOLD_MS
@@ -446,7 +473,11 @@ def export_process_animation(
         for index, frame in enumerate(resolved_frames):
             frame_path = temporary / "frame-{:06d}.png".format(index)
             try:
-                svg_to_png(frame.svg, frame_path, width=ANIMATION_WIDTH)
+                svg_to_png(
+                    frame.svg,
+                    frame_path,
+                    width=frame_width * animation_scale,
+                )
             except Exception as exc:
                 raise ProcessExportError(
                     "Unable to rasterize process frames: {}".format(exc)
@@ -468,6 +499,7 @@ def export_process_animation(
             manifest,
             staged,
             resolved_format,
+            loop,
         )
         if not staged.is_file():
             raise ProcessExportError("ffmpeg did not create the process export file")
@@ -484,8 +516,9 @@ def export_process_animation(
         "final_hold_ms": FINAL_HOLD_MS,
         "frame_durations_ms": durations_ms,
         "duration_ms": total_duration_ms,
-        "width": ANIMATION_WIDTH,
-        "height": ANIMATION_HEIGHT,
+        "width": frame_width * animation_scale,
+        "height": frame_height * animation_scale,
+        "loop": loop,
     }
 
 

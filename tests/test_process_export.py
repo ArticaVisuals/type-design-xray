@@ -77,9 +77,11 @@ def test_animation_accepts_layer_records_and_renderer_with_variable_timing(
         manifest: Path,
         destination: Path,
         format_name: str,
+        loop: bool = True,
     ) -> None:
         assert ffmpeg == "/fake/ffmpeg"
         assert format_name == "mp4"
+        assert loop is True
         assert manifest.read_text(encoding="utf-8").splitlines() == [
             "ffconcat version 1.0",
             "file frame-000000.png",
@@ -121,6 +123,7 @@ def test_animation_accepts_layer_records_and_renderer_with_variable_timing(
         "duration_ms": 1125.0,
         "width": 1080,
         "height": 1532,
+        "loop": True,
     }
 
 
@@ -143,7 +146,7 @@ def test_animation_accepts_simple_svg_sequence_and_assumes_last_is_master(
     monkeypatch.setattr(
         process_export,
         "_encode_timed_frames",
-        lambda ffmpeg, manifest, destination, actual_format: (
+        lambda ffmpeg, manifest, destination, actual_format, loop=True: (
             destination.write_bytes(b"animation")
         ),
     )
@@ -248,6 +251,65 @@ def test_ffmpeg_commands_use_concat_vfr_and_format_specific_encoding(
     assert mp4[mp4.index("-bf") + 1] == "0"
     assert mp4[mp4.index("-pix_fmt") + 1] == "yuv420p"
     assert "-t" not in mp4
+
+
+def test_landscape_non_looping_word_animation_uses_requested_dimensions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    landscape = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="766" '
+        'viewBox="0 0 1080 766"><rect width="1080" height="766"/></svg>'
+    )
+    seen = {}
+
+    monkeypatch.setattr(process_export, "_find_ffmpeg", lambda: "/fake/ffmpeg")
+    monkeypatch.setattr(
+        process_export,
+        "svg_to_png",
+        lambda svg, output, width: (
+            seen.setdefault("widths", []).append(width),
+            output.write_bytes(b"png"),
+            output,
+        )[-1],
+    )
+
+    def fake_encode(ffmpeg, manifest, destination, format_name, loop=True):
+        seen["loop"] = loop
+        destination.write_bytes(b"animation")
+
+    monkeypatch.setattr(process_export, "_encode_timed_frames", fake_encode)
+    result = process_export.export_process_animation(
+        [landscape],
+        tmp_path / "word.gif",
+        format_name="gif",
+        frame_width=1080,
+        frame_height=766,
+        animation_scale=2,
+        loop=False,
+    )
+
+    assert seen == {"widths": [2160], "loop": False}
+    assert result["width"] == 2160
+    assert result["height"] == 1532
+    assert result["loop"] is False
+
+
+def test_non_looping_gif_encoder_omits_the_repeat_directive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands = []
+    monkeypatch.setattr(
+        process_export, "_run_ffmpeg", lambda command: commands.append(list(command))
+    )
+    manifest = tmp_path / "frames.ffconcat"
+    manifest.write_text("ffconcat version 1.0\n", encoding="utf-8")
+
+    process_export._encode_timed_frames(
+        "/ffmpeg", manifest, tmp_path / "word.gif", "gif", loop=False
+    )
+
+    command = commands[0]
+    assert command[command.index("-loop") + 1] == "-1"
 
 
 _HAS_REAL_VIDEO_STACK = bool(

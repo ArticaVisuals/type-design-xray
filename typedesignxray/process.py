@@ -18,19 +18,25 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import ir
 from .compound import compound_glyph
+from .layout import layout_string
 from .parsers import list_font_layers, load_font
 from .specimen import (
+    _all_paths,
     _font_path,
     _format_number,
     _glyph_metadata,
     _glyph_svg,
+    _handle_geometry,
     _metadata_text,
+    _node_geometry,
     _number,
     _ordered_glyph_names,
     _selected_master_id,
     _source_masters,
     _specimen_colors,
     _string,
+    _svg_number,
+    _vertical_frame,
 )
 from .specimen_export import _metadata_svg, _slug
 
@@ -41,6 +47,13 @@ PROCESS_FRAME_WIDTH = 540
 PROCESS_FRAME_HEIGHT = 766
 PROCESS_ANIMATION_WIDTH = 1080
 PROCESS_ANIMATION_HEIGHT = 1532
+WORD_FRAME_WIDTH = 1080
+WORD_FRAME_HEIGHT = 766
+WORD_ANIMATION_WIDTH = 2160
+WORD_ANIMATION_HEIGHT = 1532
+_WORD_PANEL_WIDTH = 1044.0
+_WORD_PANEL_HEIGHT = 510.0
+_WORD_MAX_CHARACTERS = 32
 _POINT_SIZE_MIN = 48.0
 _POINT_SIZE_MAX = 520.0
 
@@ -146,6 +159,38 @@ def _glyph_input(payload: Dict[str, Any]) -> str:
         value = value[1:]
     if not value:
         raise ValueError("glyph name after / must not be empty")
+    return value
+
+
+def _content_mode(payload: Dict[str, Any]) -> str:
+    value = _string(payload, "content_mode", "single").lower()
+    if value not in ("single", "word"):
+        raise ValueError("content_mode must be 'single' or 'word'")
+    return value
+
+
+def _animation_mode(payload: Dict[str, Any]) -> str:
+    value = _string(payload, "animation_mode", "sequential").lower()
+    if value not in ("sequential", "simultaneous"):
+        raise ValueError(
+            "animation_mode must be 'sequential' or 'simultaneous'"
+        )
+    return value
+
+
+def _word_input(payload: Dict[str, Any]) -> str:
+    value = payload.get("text", payload.get("glyph", ""))
+    if not isinstance(value, str):
+        raise ValueError("text must be a string")
+    value = value.strip()
+    if not value:
+        raise ValueError("word text is required")
+    if len(value) > _WORD_MAX_CHARACTERS:
+        raise ValueError(
+            "word text may contain at most {} characters".format(
+                _WORD_MAX_CHARACTERS
+            )
+        )
     return value
 
 
@@ -266,12 +311,182 @@ def _catalog(
     return font, glyph_name, selected_master_id, masters, layers
 
 
+def _word_sequence(
+    glyphs: Sequence[Dict[str, Any]], animation_mode: str
+) -> List[Dict[str, Any]]:
+    """Build a deterministic word timeline from per-glyph layer sequences."""
+    frames: List[Dict[str, Any]] = []
+    if animation_mode == "sequential":
+        for glyph_index, glyph in enumerate(glyphs):
+            glyph_layers = glyph["layers"]
+            for layer_index, active_layer in enumerate(glyph_layers):
+                selections = []
+                for index, item in enumerate(glyphs):
+                    if index < glyph_index:
+                        selections.append(item["layers"][-1]["layer_id"])
+                    elif index == glyph_index:
+                        selections.append(active_layer["layer_id"])
+                    else:
+                        # Future glyphs are deliberately absent until their
+                        # own animation begins.
+                        selections.append(None)
+                frames.append(
+                    {
+                        "layer_id": "sequential:{}:{}".format(
+                            glyph_index, layer_index
+                        ),
+                        "glyph_layers": selections,
+                        "active_glyph_index": glyph_index,
+                        "active_layer_index": layer_index,
+                        "name": "{} · {}".format(
+                            glyph["character"] or glyph["name"],
+                            active_layer["name"],
+                        ),
+                    }
+                )
+    else:
+        frame_count = max(len(glyph["layers"]) for glyph in glyphs)
+        for layer_index in range(frame_count):
+            selections = []
+            labels = []
+            for glyph in glyphs:
+                selected_index = min(layer_index, len(glyph["layers"]) - 1)
+                selected = glyph["layers"][selected_index]
+                selections.append(selected["layer_id"])
+                labels.append(selected["name"])
+            unique_labels = list(dict.fromkeys(labels))
+            frames.append(
+                {
+                    "layer_id": "simultaneous:{}".format(layer_index),
+                    "glyph_layers": selections,
+                    "active_glyph_index": None,
+                    "active_layer_index": layer_index,
+                    "name": " / ".join(unique_labels),
+                }
+            )
+
+    for index, frame in enumerate(frames):
+        is_final = index == len(frames) - 1
+        frame.update(
+            {
+                "id": index,
+                "label": "{} · {}{}".format(
+                    index + 1,
+                    frame["name"],
+                    " — COMPLETE" if is_final else "",
+                ),
+                "is_master": is_final,
+                "is_final": is_final,
+                "delay_ms": (
+                    FINAL_HOLD_MS if is_final else DEFAULT_FRAME_DELAY_MS
+                ),
+            }
+        )
+    return frames
+
+
+def _catalog_word(
+    path: Path,
+    requested_master: Optional[str],
+    text: str,
+    animation_mode: str,
+) -> Tuple[
+    ir.Font,
+    str,
+    List[Dict[str, str]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+]:
+    active_font = _load_layer_font(path, requested_master, None)
+    masters = _source_masters(path)
+    if not masters:
+        raise ValueError("the Glyphs source contains no font masters")
+    parsed_master_name = _metadata_text(
+        getattr(active_font, "master_name", "")
+    )
+    selected_master_id = _selected_master_id(
+        masters, requested_master, parsed_master_name
+    )
+    selected_master_name = _master_name(
+        masters, selected_master_id, parsed_master_name
+    )
+    run = layout_string(active_font, text, apply_kerning=True, missing="error")
+    if not run.glyphs:
+        raise ValueError("word text did not resolve to any glyphs")
+
+    glyphs: List[Dict[str, Any]] = []
+    for index, positioned in enumerate(run.glyphs):
+        glyph = positioned.glyph
+        layers = _layer_sequence(
+            _source_layers(path, glyph.name),
+            selected_master_id,
+            selected_master_name,
+            include_unassociated=len(masters) == 1,
+        )
+        glyphs.append(
+            {
+                "index": index,
+                "name": glyph.name,
+                "character": positioned.source_char or "",
+                "origin_x": _format_number(positioned.origin_x),
+                "kern_before": _format_number(positioned.kern_before),
+                "glyph": _glyph_metadata(glyph),
+                "layers": layers,
+            }
+        )
+    return (
+        active_font,
+        selected_master_id,
+        masters,
+        glyphs,
+        _word_sequence(glyphs, animation_mode),
+    )
+
+
 def catalog_request(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Return one glyph's exact process-layer sequence from a Glyphs file."""
+    """Return a single-glyph or composed-word process sequence."""
     if not isinstance(payload, dict):
         raise ValueError("request body must be a JSON object")
     path = _process_font_path(_string(payload, "font_path"))
     master = _string(payload, "master") or None
+    content_mode = _content_mode(payload)
+    if content_mode == "word":
+        text = _word_input(payload)
+        animation_mode = _animation_mode(payload)
+        font, selected_master_id, masters, glyphs, frames = _catalog_word(
+            path, master, text, animation_mode
+        )
+        return {
+            "font_path": str(path),
+            "family_name": _metadata_text(getattr(font, "family_name", ""))
+            or path.stem,
+            "master_name": _master_name(
+                masters,
+                selected_master_id,
+                _metadata_text(getattr(font, "master_name", "")),
+            ),
+            "selected_master_id": selected_master_id,
+            "source_format": "glyphs",
+            "units_per_em": _format_number(font.units_per_em),
+            "masters": masters,
+            "content_mode": "word",
+            "animation_mode": animation_mode,
+            "text": text,
+            "glyphs": glyphs,
+            "glyph_count": len(glyphs),
+            "layers": frames,
+            "sequence": frames,
+            "normal_delay_ms": DEFAULT_FRAME_DELAY_MS,
+            "final_hold_ms": FINAL_HOLD_MS,
+            "frame_size": {
+                "width": WORD_FRAME_WIDTH,
+                "height": WORD_FRAME_HEIGHT,
+            },
+            "animation_size": {
+                "width": WORD_ANIMATION_WIDTH,
+                "height": WORD_ANIMATION_HEIGHT,
+            },
+        }
     requested_glyph = _glyph_input(payload)
     font, glyph_name, selected_master_id, masters, layers = _catalog(
         path, master, requested_glyph
@@ -295,6 +510,7 @@ def catalog_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         ),
         "selected_master_id": selected_master_id,
         "source_format": "glyphs",
+        "content_mode": "single",
         "units_per_em": _format_number(font.units_per_em),
         "masters": masters,
         "glyph": _glyph_metadata(glyph),
@@ -355,10 +571,179 @@ def _process_glyph_svg(
     )
 
 
+def _word_glyph_geometry(
+    glyph: ir.Glyph,
+    bezier: bool,
+    handles: bool,
+    colors: Dict[str, str],
+    scale: float,
+) -> str:
+    path = html.escape(_all_paths(glyph), quote=True)
+    if bezier:
+        marker_radius = 3.0 / scale
+        return (
+            '<path class="xray-fill" d="{path}" fill="{fill}" '
+            'fill-opacity="0.08" fill-rule="nonzero"/>'
+            '<path class="native-outline" d="{path}" fill="none" '
+            'stroke="{stroke}" stroke-width="1.25" '
+            'vector-effect="non-scaling-stroke"/>{handles}{nodes}'
+        ).format(
+            path=path,
+            fill=colors["fill"],
+            stroke=colors["stroke"],
+            handles=(
+                _handle_geometry(glyph, marker_radius, colors)
+                if handles
+                else ""
+            ),
+            nodes=_node_geometry(glyph, marker_radius, colors),
+        )
+    if any(not contour.closed for contour in glyph.contours):
+        return (
+            '<path class="native-outline" d="{path}" fill="none" '
+            'stroke="{stroke}" stroke-width="1.25" '
+            'vector-effect="non-scaling-stroke"/>'
+        ).format(path=path, stroke=colors["stroke"])
+    return (
+        '<path class="solid-outline" d="{path}" fill="{fill}" '
+        'fill-rule="nonzero"/>'
+    ).format(path=path, fill=colors["fill"])
+
+
+def _word_panel_svg(
+    path: Path,
+    active_font: ir.Font,
+    selected_master_id: str,
+    glyphs: Sequence[Dict[str, Any]],
+    frame: Dict[str, Any],
+    point_size: float,
+    bezier: bool,
+    handles: bool,
+    colors: Dict[str, str],
+) -> Tuple[str, float]:
+    upem = active_font.units_per_em if active_font.units_per_em > 0 else 1000.0
+    low, high = _vertical_frame(active_font)
+    vertical_units = max(high - low, 1.0)
+    total_advance = max(
+        float(glyphs[-1]["origin_x"])
+        + active_font.glyphs[glyphs[-1]["name"]].advance_width,
+        1.0,
+    )
+    scale = min(
+        point_size / upem,
+        (_WORD_PANEL_WIDTH - 72.0) / total_advance,
+        (_WORD_PANEL_HEIGHT - 72.0) / vertical_units,
+    )
+    baseline = ((_WORD_PANEL_HEIGHT - vertical_units * scale) * 0.5) + (
+        high * scale
+    )
+    run_x = (_WORD_PANEL_WIDTH - total_advance * scale) * 0.5
+    selections = frame["glyph_layers"]
+    rendered_glyphs: List[str] = []
+    for index, (glyph_record, layer_id) in enumerate(zip(glyphs, selections)):
+        if layer_id is None:
+            continue
+        glyph_name = str(glyph_record["name"])
+        layer_font = _load_layer_font(path, selected_master_id, str(layer_id))
+        glyph = layer_font.glyphs[glyph_name]
+        if bezier:
+            glyph = _cached_compounded_layer_glyph(
+                *_cache_key(path, selected_master_id, str(layer_id)),
+                glyph_name,
+            )
+        geometry = _word_glyph_geometry(
+            glyph, bezier, handles, colors, scale
+        )
+        x = run_x + float(glyph_record["origin_x"]) * scale
+        rendered_glyphs.append(
+            '<g class="word-glyph" data-word-index="{index}" '
+            'data-glyph="{glyph}" data-layer-id="{layer}" '
+            'transform="translate({x} {baseline})">'
+            '<g class="font-unit-geometry" transform="scale({scale} {negative})">'
+            '{geometry}</g></g>'.format(
+                index=index,
+                glyph=html.escape(glyph_name, quote=True),
+                layer=html.escape(str(layer_id), quote=True),
+                x=_svg_number(x),
+                baseline=_svg_number(baseline),
+                scale=_svg_number(scale),
+                negative=_svg_number(-scale),
+                geometry=geometry,
+            )
+        )
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'viewBox="0 0 1044 510" width="1044" height="510" '
+        'role="img" aria-label="Word design process" '
+        'data-process-word-panel="true" data-frame-id="{frame_id}" '
+        'data-visible-glyphs="{visible}">{glyphs}</svg>'.format(
+            frame_id=html.escape(str(frame["layer_id"]), quote=True),
+            visible=sum(layer_id is not None for layer_id in selections),
+            glyphs="".join(rendered_glyphs),
+        ),
+        scale,
+    )
+
+
+def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+    path = _process_font_path(_string(payload, "font_path"))
+    master = _string(payload, "master") or None
+    text = _word_input(payload)
+    animation_mode = _animation_mode(payload)
+    point_size = _number(
+        payload, "point_size", 370.0, _POINT_SIZE_MIN, _POINT_SIZE_MAX
+    )
+    bezier = _boolean(payload, "bezier", True)
+    handles = _boolean(payload, "handles", True)
+    colors = _specimen_colors(payload)
+    active_font, selected_master_id, masters, glyphs, frames = _catalog_word(
+        path, master, text, animation_mode
+    )
+    frame = _selected_layer(frames, _string(payload, "layer_id"))
+    panel, scale = _word_panel_svg(
+        path,
+        active_font,
+        selected_master_id,
+        glyphs,
+        frame,
+        point_size,
+        bezier,
+        handles,
+        colors,
+    )
+    return {
+        "font_path": str(path),
+        "family_name": _metadata_text(getattr(active_font, "family_name", ""))
+        or path.stem,
+        "master_name": _master_name(
+            masters,
+            selected_master_id,
+            _metadata_text(getattr(active_font, "master_name", "")),
+        ),
+        "selected_master_id": selected_master_id,
+        "content_mode": "word",
+        "animation_mode": animation_mode,
+        "text": text,
+        "glyphs": glyphs,
+        "layer": frame,
+        "point_size": _format_number(point_size),
+        "bezier": bezier,
+        "handles": handles,
+        "compounded": bezier,
+        "colors": colors,
+        "font_unit_scale": _format_number(scale),
+        "svg": panel,
+        "total_frame_count": len(frames),
+        "final_hold_ms": FINAL_HOLD_MS,
+    }
+
+
 def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Render one exact process layer by its stable Glyphs layer ID."""
+    """Render one exact single-glyph layer or composed-word frame."""
     if not isinstance(payload, dict):
         raise ValueError("request body must be a JSON object")
+    if _content_mode(payload) == "word":
+        return _render_word_request(payload)
     path = _process_font_path(_string(payload, "font_path"))
     master = _string(payload, "master") or None
     requested_glyph = _glyph_input(payload)
@@ -420,9 +805,70 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _word_metadata_svg(rendered: Dict[str, Any]) -> str:
+    glyph_names = " / ".join(item["name"] for item in rendered["glyphs"])
+    frame = rendered["layer"]
+    lines = (
+        "TYPEFACE: {}".format(str(rendered["family_name"]).upper()),
+        "",
+        "STYLE:    {}".format(str(rendered["master_name"]).upper()),
+        "SIZE:     {} pt".format(rendered["point_size"]),
+        "",
+        "TEXT:     {}".format(rendered["text"]),
+        "GLYPHS:   {}".format(glyph_names),
+        "PROCESS:  {}".format(str(rendered["animation_mode"]).upper()),
+        "",
+        "FRAME:    {} / {}".format(
+            int(frame["id"]) + 1, rendered["total_frame_count"]
+        ),
+        "STATE:    {}".format(
+            "COMPLETE" if frame["is_final"] else frame["name"]
+        ),
+    )
+    spans = []
+    for index, line in enumerate(lines):
+        spans.append(
+            '<tspan x="20" dy="{dy}">{line}</tspan>'.format(
+                dy="0" if index == 0 else "15",
+                line=html.escape(line, quote=False) if line else "&#160;",
+            )
+        )
+    return (
+        '<text x="20" y="20" fill="{text}" font-size="14" '
+        'font-family="SFMono-Regular, Menlo, Consolas, Liberation Mono, '
+        'monospace" letter-spacing="1.4">{spans}</text>'
+    ).format(text=rendered["colors"]["text"], spans="".join(spans))
+
+
 def render_process_frame_svg(payload: Dict[str, Any]) -> str:
-    """Compose one exact 540 x 766 metadata-and-glyph process frame."""
+    """Compose one exact single-glyph or landscape word process frame."""
     rendered = render_request(payload)
+    if rendered.get("content_mode") == "word":
+        frame = rendered["layer"]
+        palette = rendered["colors"]
+        return (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="766" '
+            'viewBox="0 0 1080 766" data-process-frame="true" '
+            'data-process-content="word" data-text="{text}" '
+            'data-animation-mode="{mode}" data-frame-id="{frame_id}" '
+            'data-final="{final}" data-bezier="{bezier}" '
+            'data-handles="{handles}">'
+            '<rect width="1080" height="766" fill="{background}"/>'
+            '<path d="M 19 245.5 H 1062" fill="none" stroke="{guides}" '
+            'stroke-width="1"/>{metadata}'
+            '<g transform="translate(18 256)">{panel}</g></svg>'
+        ).format(
+            text=html.escape(str(rendered["text"]), quote=True),
+            mode=html.escape(str(rendered["animation_mode"]), quote=True),
+            frame_id=html.escape(str(frame["layer_id"]), quote=True),
+            final="true" if frame["is_final"] else "false",
+            bezier="true" if rendered["bezier"] else "false",
+            handles="true" if rendered["handles"] else "false",
+            background=palette["background"],
+            guides=palette["guides"],
+            metadata=_word_metadata_svg(rendered),
+            panel=rendered["svg"],
+        )
     path = _process_font_path(rendered["font_path"])
     layer = rendered["layer"]
     font = _load_layer_font(
@@ -506,17 +952,26 @@ def export_request(
         raise ValueError("format must be one of: gif, mp4, png, svg")
 
     catalog = catalog_request(payload)
+    is_word = catalog.get("content_mode") == "word"
+    target_name = (
+        str(catalog["text"])
+        if is_word
+        else str(catalog["glyph"]["name"])
+    )
     destination = _export_destination(
         payload,
         output_dir,
         format_name,
         str(catalog["family_name"]),
-        str(catalog["glyph"]["name"]),
+        target_name,
     )
     common = {
         "font_path": catalog["font_path"],
         "master": catalog["selected_master_id"],
-        "glyph": catalog["glyph"]["name"],
+        "content_mode": catalog["content_mode"],
+        "glyph": target_name,
+        "text": catalog.get("text", ""),
+        "animation_mode": catalog.get("animation_mode", "sequential"),
         "point_size": payload.get("point_size", 370.0),
         "bezier": payload.get("bezier", True),
         "handles": payload.get("handles", False),
@@ -539,6 +994,10 @@ def export_request(
             svg,
             destination,
             format_name=format_name,
+            frame_width=(WORD_FRAME_WIDTH if is_word else PROCESS_FRAME_WIDTH),
+            frame_height=(
+                WORD_FRAME_HEIGHT if is_word else PROCESS_FRAME_HEIGHT
+            ),
         )
         result.update(
             {
@@ -567,6 +1026,11 @@ def export_request(
             destination,
             format_name=format_name,
             frame_delay_ms=speed * 1000.0,
+            frame_width=(WORD_FRAME_WIDTH if is_word else PROCESS_FRAME_WIDTH),
+            frame_height=(
+                WORD_FRAME_HEIGHT if is_word else PROCESS_FRAME_HEIGHT
+            ),
+            loop=not is_word,
         )
         result["total_frame_count"] = len(catalog["layers"])
 
@@ -574,7 +1038,10 @@ def export_request(
         {
             "family_name": catalog["family_name"],
             "master_name": catalog["master_name"],
-            "glyph_name": catalog["glyph"]["name"],
+            "content_mode": catalog["content_mode"],
+            "animation_mode": catalog.get("animation_mode"),
+            "text": catalog.get("text"),
+            "glyph_name": target_name,
             "point_size": float(common["point_size"]),
             "bezier": bool(common["bezier"]),
             "handles": bool(common["handles"]),
@@ -593,6 +1060,10 @@ __all__ = [
     "PROCESS_FRAME_HEIGHT",
     "PROCESS_ANIMATION_WIDTH",
     "PROCESS_ANIMATION_HEIGHT",
+    "WORD_FRAME_WIDTH",
+    "WORD_FRAME_HEIGHT",
+    "WORD_ANIMATION_WIDTH",
+    "WORD_ANIMATION_HEIGHT",
     "catalog_request",
     "render_request",
     "render_process_frame_svg",

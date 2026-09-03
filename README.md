@@ -43,7 +43,7 @@ source-driven tools:
 | --- | --- | --- |
 | **X-Ray Blueprint** | Inspecting outlines, nodes, Bézier handles, spacing, kerning, and metrics for a typed string | SVG, PNG, PDF |
 | **Font Specimen** | Playing every designed symbol in the selected master as a two-up specimen | SVG/PNG frames, looping GIF, MP4 |
-| **Font Design Process** | Playing every authored layer of one glyph from skeleton to the active master | SVG/PNG layers, looping GIF, MP4 |
+| **Font Design Process** | Playing the authored layers of one glyph—or assembling a complete word sequentially or simultaneously | SVG/PNG frames, GIF, MP4 |
 
 The three tabs are available on every screen, so switching tools never requires
 another server or installation. All processing stays local to your computer.
@@ -51,8 +51,8 @@ another server or installation. All processing stays local to your computer.
 ## Download and set up
 
 You need **Python 3.9 or newer**. Every command below comes in two versions —
-use the one for your system. The documented install and update commands are
-automatically tested on both macOS and Windows for every GitHub change.
+use the one for your system. Fresh installs and the complete test suite are
+automatically checked on both macOS and Windows for every GitHub change.
 
 > **PowerShell:** run each command on its own line. Do not join two commands
 > into one line; PowerShell may otherwise treat the second command as an
@@ -395,11 +395,12 @@ media dependencies above are installed, **Frame PNG**, **Export GIF**, and
 
 ### Font Design Process Video
 
-The preview also includes a separate, additive single-glyph process player at
+The preview also includes a process player at
 **[http://127.0.0.1:8765/process](http://127.0.0.1:8765/process)**. Open it from
-the **Font Design Process** tab. This player uses the left half of the specimen
-layout: a 540×766 layer frame with source-derived metadata
-above one glyph, matching the vertical Type Design X-Ray process format.
+the **Font Design Process** tab. **Single Glyph** mode uses the left half of the
+specimen layout: a 540×766 layer frame with source-derived metadata above one
+glyph. **Word** mode expands to the full 1080×766 landscape format and composes
+the entered text with the active master's real advances and kerning.
 
 Import an editable `.glyphs` file, enter one character such as `A` or an exact
 Glyphs glyph name such as `ampersand`, then click **Load**. The player reads the
@@ -418,6 +419,22 @@ the final master holds for 1000 ms and then returns to the first skeleton layer.
 Previous, next, the layer menu, and play/pause all work on the exact same ordered
 sequence used by export.
 
+Switch **Mode** to **Word**, enter text such as `Caliper`, and choose one of two
+animation modes:
+
+- **Sequential** reveals glyphs from left to right. Each glyph runs through its
+  own authored layers, freezes on the active master, and remains stable while
+  the next glyph appears and animates. Future glyphs stay hidden until their
+  turn begins.
+- **Simultaneous** reveals every glyph together and advances their authored
+  layer sequences at the same time. Glyphs with shorter sequences hold on the
+  active master while the remaining glyphs finish.
+
+Word playback and word GIF/MP4 export stop after the completed word's final
+1000 ms hold. Single Glyph playback retains its continuous loop. The frame menu,
+previous/next buttons, live preview, and exports all use the same generated word
+timeline.
+
 The controls also include:
 
 - Point size and all eight specimen colors: background, fill, stroke, text,
@@ -427,9 +444,10 @@ The controls also include:
 - A separate **Handles** switch, so nodes can remain visible without the
   off-curve points and connecting lines. If Bézier is off, an open skeleton is
   still drawn as an outline instead of disappearing.
-- **Layer SVG** and **Layer PNG** for the current 540×766 frame.
-- **Export GIF** and **Export MP4** for the complete process at 1080×1532 (2×
-  the player frame), including the fixed final hold.
+- **Layer SVG** and **Layer PNG** for the current 540×766 single-glyph frame.
+- **Frame SVG** and **Frame PNG** for the current 1080×766 word frame.
+- **Export GIF** and **Export MP4** at 1080×1532 for Single Glyph or 2160×1532
+  for Word, including the fixed final hold.
 
 Compounded Bézier rendering and the media exports use the same optional
 dependencies documented in the Specimen Player section above.
@@ -443,6 +461,11 @@ is its open `Skeleton v1` layer and the final frame is the active `Regular`
 master. Click **Play** to verify the longer final hold, toggle **Handles**, and
 try **Layer SVG**. With Cairo/resvg and FFmpeg installed, GIF and MP4 should
 download at 1080×1532. No private font is needed for this test.
+
+To test Word mode, select **Word**, enter `Aa`, and choose **Sequential**. The
+first frame contains only `A`; `a` appears when its own animation starts. Switch
+to **Simultaneous** to see both glyphs begin together. The completed word stops
+after its 1000 ms hold, and its GIF/MP4 downloads at 2160×1532.
 
 Use `--port` if 8765 is taken; the browser opens the selected port. Use
 `--no-open` when you want the command to print the URL without launching a

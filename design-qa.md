@@ -182,3 +182,27 @@ final result: passed
 - Visual capture: `/tmp/type-design-xray-three-tools.png`.
 
 final result: passed
+
+## Word process animation — 2026-09-02
+
+- Added a full-width 1080 × 766 Word mode to Font Design Process while
+  preserving the existing 540 × 766 Single Glyph mode.
+- Sequential mode reveals one glyph at a time, keeps completed glyphs on the
+  selected active master, and hides future glyphs until their animation begins.
+- Simultaneous mode reveals the whole word immediately, advances every glyph's
+  authored layers together, and holds shorter layer sequences on the active
+  master while the remaining glyphs finish.
+- Both word timelines stop after the completed frame's 1000 ms hold; existing
+  single-glyph preview playback continues to loop.
+- Latest Caliper `Caliper` check: 67 sequential frames and 19 simultaneous
+  frames, with per-glyph authored layer counts of 4/19/4/7/13/5/15. Both modes
+  end with all seven glyphs on `m01 / Regular`.
+- Real bundled-demo GIF/MP4 exports: 2160 × 1532. The word GIF has no repeat
+  extension and the MP4 is a single finite timeline.
+- Clean 1.2.0 wheel install: both word modes catalogued and rendered from the
+  installed package, and the installed preview command opened successfully.
+- Automated suite: 345 passed, 4 skipped.
+- Python compilation, embedded JavaScript syntax, and diff checks: passed.
+- Visual capture: `/tmp/caliper-word-process-final.png`.
+
+final result: passed
