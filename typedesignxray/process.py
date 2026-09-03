@@ -627,6 +627,7 @@ def _word_panel_svg(
     point_size: float,
     bezier: bool,
     handles: bool,
+    final_solid: bool,
     colors: Dict[str, str],
 ) -> Tuple[str, float]:
     upem = active_font.units_per_em if active_font.units_per_em > 0 else 1000.0
@@ -654,24 +655,37 @@ def _word_panel_svg(
         glyph_name = str(glyph_record["name"])
         layer_font = _load_layer_font(path, selected_master_id, str(layer_id))
         glyph = layer_font.glyphs[glyph_name]
-        if bezier:
+        final_layer_id = next(
+            (
+                str(item["layer_id"])
+                for item in reversed(glyph_record["layers"])
+                if item.get("is_final")
+            ),
+            "",
+        )
+        render_bezier = bezier and not (
+            final_solid and str(layer_id) == final_layer_id
+        )
+        if render_bezier:
             glyph = _cached_compounded_layer_glyph(
                 *_cache_key(path, selected_master_id, str(layer_id)),
                 glyph_name,
             )
         geometry = _word_glyph_geometry(
-            glyph, bezier, handles, colors, scale
+            glyph, render_bezier, handles, colors, scale
         )
         x = run_x + float(glyph_record["origin_x"]) * scale
         rendered_glyphs.append(
             '<g class="word-glyph" data-word-index="{index}" '
             'data-glyph="{glyph}" data-layer-id="{layer}" '
+            'data-render-mode="{render_mode}" '
             'transform="translate({x} {baseline})">'
             '<g class="font-unit-geometry" transform="scale({scale} {negative})">'
             '{geometry}</g></g>'.format(
                 index=index,
                 glyph=html.escape(glyph_name, quote=True),
                 layer=html.escape(str(layer_id), quote=True),
+                render_mode="bezier" if render_bezier else "solid",
                 x=_svg_number(x),
                 baseline=_svg_number(baseline),
                 scale=_svg_number(scale),
@@ -684,9 +698,11 @@ def _word_panel_svg(
         'viewBox="0 0 1044 510" width="1044" height="510" '
         'role="img" aria-label="Word design process" '
         'data-kerning="selected-master" '
+        'data-final-solid="{final_solid}" '
         'data-process-word-panel="true" data-frame-id="{frame_id}" '
         'data-visible-glyphs="{visible}">{glyphs}</svg>'.format(
             frame_id=html.escape(str(frame["layer_id"]), quote=True),
+            final_solid="true" if final_solid else "false",
             visible=sum(layer_id is not None for layer_id in selections),
             glyphs="".join(rendered_glyphs),
         ),
@@ -704,6 +720,7 @@ def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     bezier = _boolean(payload, "bezier", True)
     handles = _boolean(payload, "handles", True)
+    final_solid = _boolean(payload, "final_solid", False)
     show_metadata = _boolean(payload, "show_metadata", True)
     colors = _specimen_colors(payload)
     active_font, selected_master_id, masters, glyphs, frames = _catalog_word(
@@ -719,6 +736,7 @@ def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         point_size,
         bezier,
         handles,
+        final_solid,
         colors,
     )
     return {
@@ -740,6 +758,7 @@ def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         "point_size": _format_number(point_size),
         "bezier": bezier,
         "handles": handles,
+        "final_solid": final_solid,
         "show_metadata": show_metadata,
         "compounded": bezier,
         "colors": colors,
@@ -877,6 +896,7 @@ def render_process_frame_svg(payload: Dict[str, Any]) -> str:
             'data-process-content="word" data-text="{text}" '
             'data-animation-mode="{mode}" data-frame-id="{frame_id}" '
             'data-kerning="selected-master" '
+            'data-final-solid="{final_solid}" '
             'data-final="{final}" data-bezier="{bezier}" '
             'data-handles="{handles}" data-show-metadata="{show_metadata}">'
             '<rect width="1080" height="766" fill="{background}"/>'
@@ -888,6 +908,7 @@ def render_process_frame_svg(payload: Dict[str, Any]) -> str:
             final="true" if frame["is_final"] else "false",
             bezier="true" if rendered["bezier"] else "false",
             handles="true" if rendered["handles"] else "false",
+            final_solid="true" if rendered["final_solid"] else "false",
             show_metadata="true" if show_metadata else "false",
             background=palette["background"],
             chrome=chrome,
@@ -1000,6 +1021,7 @@ def export_request(
         target_name,
     )
     show_metadata = _boolean(payload, "show_metadata", True)
+    final_solid = _boolean(payload, "final_solid", False)
     common = {
         "font_path": catalog["font_path"],
         "master": catalog["selected_master_id"],
@@ -1010,6 +1032,7 @@ def export_request(
         "point_size": payload.get("point_size", 370.0),
         "bezier": payload.get("bezier", True),
         "handles": payload.get("handles", False),
+        "final_solid": final_solid,
         "show_metadata": show_metadata,
         "colors": payload.get("colors"),
     }
@@ -1085,6 +1108,7 @@ def export_request(
             "point_size": float(common["point_size"]),
             "bezier": bool(common["bezier"]),
             "handles": bool(common["handles"]),
+            "final_solid": bool(common["final_solid"]),
             "show_metadata": show_metadata,
             "colors": _specimen_colors(
                 {"colors": common["colors"] or {}}

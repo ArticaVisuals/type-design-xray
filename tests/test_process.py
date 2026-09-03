@@ -329,6 +329,79 @@ def test_word_frames_hide_future_glyphs_and_finish_as_landscape(
     assert "PROCESS:  SEQUENTIAL" in final
 
 
+def test_word_solid_finish_switches_each_completed_glyph_independently(
+    tmp_path: Path,
+) -> None:
+    source = _word_layer_source(tmp_path)
+    catalog = catalog_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "AB",
+            "animation_mode": "simultaneous",
+        }
+    )
+    middle = catalog["layers"][1]
+    assert middle["glyph_layers"] == ["DA", "M1"]
+
+    mixed = render_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "AB",
+            "animation_mode": "simultaneous",
+            "layer_id": middle["layer_id"],
+            "bezier": True,
+            "handles": True,
+            "final_solid": True,
+        }
+    )
+    assert mixed["final_solid"] is True
+    assert 'data-final-solid="true"' in mixed["svg"]
+    assert mixed["svg"].count('data-render-mode="bezier"') == 1
+    assert mixed["svg"].count('data-render-mode="solid"') == 1
+    assert 'data-glyph="A" data-layer-id="DA" data-render-mode="bezier"' in mixed[
+        "svg"
+    ]
+    assert 'data-glyph="B" data-layer-id="M1" data-render-mode="solid"' in mixed[
+        "svg"
+    ]
+    assert mixed["svg"].count('class="native-outline"') == 1
+    assert mixed["svg"].count('class="solid-outline"') == 1
+
+    bezier_only = render_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "AB",
+            "animation_mode": "simultaneous",
+            "layer_id": middle["layer_id"],
+            "bezier": True,
+            "handles": True,
+            "final_solid": False,
+        }
+    )
+    assert bezier_only["svg"].count('data-render-mode="bezier"') == 2
+    assert 'data-render-mode="solid"' not in bezier_only["svg"]
+
+    final = render_process_frame_svg(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "AB",
+            "animation_mode": "simultaneous",
+            "layer_id": catalog["layers"][-1]["layer_id"],
+            "bezier": True,
+            "handles": True,
+            "final_solid": True,
+        }
+    )
+    root = ET.fromstring(final)
+    assert root.get("data-final-solid") == "true"
+    assert final.count('data-render-mode="solid"') == 2
+    assert 'data-render-mode="bezier"' not in final
+
+
 def test_single_master_legacy_unassociated_layer_is_preserved(
     tmp_path: Path,
 ) -> None:
@@ -684,6 +757,7 @@ def test_word_export_is_landscape_and_non_looping(
             "output_path": str(tmp_path / "word.gif"),
             "speed": 0.2,
             "bezier": False,
+            "final_solid": True,
             "show_metadata": False,
         }
     )
@@ -691,6 +765,10 @@ def test_word_export_is_landscape_and_non_looping(
     assert len(captured["frames"]) == 5
     assert all("TYPEFACE:" not in frame.svg for frame in captured["frames"])
     assert all("245.5" not in frame.svg for frame in captured["frames"])
+    assert all(
+        'data-final-solid="true"' in frame.svg
+        for frame in captured["frames"]
+    )
     assert captured["frames"][-1].is_master is True
     assert captured["frame_width"] == 1080
     assert captured["frame_height"] == 766
@@ -700,6 +778,7 @@ def test_word_export_is_landscape_and_non_looping(
     assert result["height"] == 1532
     assert result["content_mode"] == "word"
     assert result["animation_mode"] == "sequential"
+    assert result["final_solid"] is True
     assert result["show_metadata"] is False
 
 

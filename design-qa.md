@@ -192,6 +192,10 @@ final result: passed
 - Simultaneous mode reveals the whole word immediately, advances every glyph's
   authored layers together, and holds shorter layer sequences on the active
   master while the remaining glyphs finish.
+- The Word-only Solid Finish switch changes each glyph independently from its
+  compounded Bézier construction to the solid active-master fill as soon as its
+  own layer sequence completes. Enabling it also enables Bézier and Handles;
+  the behavior applies to preview and every export.
 - Both word timelines stop after the completed frame's 1000 ms hold; existing
   single-glyph preview playback continues to loop.
 - The Metadata toggle removes both the complete header and divider from live
@@ -208,11 +212,14 @@ final result: passed
   animation modes, and the exact same placement in composed SVG frames.
 - Latest Caliper `m01 / Regular` kerning check: `AV` resolves to -90 units and
   `Caliper` resolves to 0/+10/+20/+10/+5/0 units between its glyphs.
+- Real-browser Caliper check: simultaneous frame 5 rendered three completed
+  glyphs solid while four unfinished glyphs retained nodes and handle lines;
+  the console reported no errors or warnings.
 - Real bundled-demo GIF/MP4 exports: 2160 × 1532. The word GIF has no repeat
   extension and the MP4 is a single finite timeline.
-- Clean 1.2.3 wheel install: both word modes catalogued and rendered from the
+- Clean 1.2.4 wheel install: both word modes catalogued and rendered from the
   installed package, and the installed preview command opened successfully.
-- Automated suite: 350 passed, 4 skipped.
+- Automated suite: 352 passed, 4 skipped.
 - Python compilation, embedded JavaScript syntax, and diff checks: passed.
 - Visual capture: `/tmp/caliper-word-process-final.png`.
 - Metadata-free visual capture: `/tmp/caliper-word-no-metadata.png`.

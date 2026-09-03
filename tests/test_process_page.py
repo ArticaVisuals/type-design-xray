@@ -33,6 +33,8 @@ def test_process_page_exposes_expected_controls() -> None:
         "mp4-scale",
         "bezier",
         "handles",
+        "final-solid",
+        "final-solid-control",
         "show-metadata",
         "export-svg",
         "export-png",
@@ -44,6 +46,8 @@ def test_process_page_exposes_expected_controls() -> None:
 
     assert '<input id="bezier" type="checkbox" checked>' in page
     assert '<input id="handles" type="checkbox">' in page
+    assert '<input id="final-solid" type="checkbox"> SOLID FINISH' in page
+    assert ".labelled[hidden], .toggle[hidden] { display:none; }" in page
     assert '<input id="show-metadata" type="checkbox" checked>' in page
     assert '<option value="single" selected>SINGLE GLYPH</option>' in page
     assert '<option value="word">WORD</option>' in page
@@ -72,6 +76,7 @@ def test_process_page_uses_process_api_contracts() -> None:
         "point_size:Number(pointSize.value)",
         "bezier:bezier.checked",
         "handles:bezier.checked && handles.checked",
+        "final_solid:finalSolid.checked",
         "show_metadata:metadataToggle.checked",
         "colors:currentColors()",
         "speed:secondsPerLayer",
@@ -88,6 +93,19 @@ def test_metadata_toggle_hides_the_header_and_updates_every_export() -> None:
     assert "metadata.hidden = hidden;" in page
     assert 'metadataToggle.addEventListener("change"' in page
     assert "applyMetadataVisibility();" in page
+
+
+def test_solid_finish_is_a_word_mode_render_and_export_setting() -> None:
+    page = process_page()
+
+    assert 'id="final-solid-control" class="toggle" hidden' in page
+    assert "finalSolidControl.hidden = !word;" in page
+    assert "finalSolid.disabled = !word;" in page
+    assert 'finalSolid.addEventListener("change"' in page
+    assert "if (finalSolid.checked)" in page
+    assert "bezier.checked = true;" in page
+    assert "handles.checked = true;" in page
+    assert page.count("final_solid:finalSolid.checked") == 3
 
 
 def test_process_playback_loops_single_glyph_and_stops_word_after_final_hold() -> None:

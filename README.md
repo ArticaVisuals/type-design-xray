@@ -434,6 +434,15 @@ animation modes:
   layer sequences at the same time. Glyphs with shorter sequences hold on the
   active master while the remaining glyphs finish.
 
+Turn on **Solid Finish** in Word mode to make completion visible per glyph.
+Unfinished glyphs continue rendering as compounded Bézier outlines with nodes
+and handles; the instant a glyph reaches the selected active master, that glyph
+alone switches to its solid fill. Enabling the mode turns on both **Bézier** and
+**Handles** automatically, after which those controls remain adjustable. This
+is especially useful with **Simultaneous**, where shorter process sequences can
+finish while the other letters keep animating. The live preview and every
+export use the same rule.
+
 Word playback and word GIF/MP4 export stop after the completed word's final
 1000 ms hold. Single Glyph playback retains its continuous loop. The frame menu,
 previous/next buttons, live preview, and exports all use the same generated word
@@ -475,10 +484,12 @@ this test.
 
 To test Word mode, select **Word**, enter `Aa`, and choose **Sequential**. The
 first frame contains only `A`; `a` appears when its own animation starts. Switch
-to **Simultaneous** to see both glyphs begin together. The completed word stops
-after its 1000 ms hold. Try `AV` to confirm the spacing follows the selected
-master's Glyphs kerning. Its GIF downloads at 2160×1532; the default 4× MP4
-downloads at 4320×3064.
+to **Simultaneous** to see both glyphs begin together. Turn on **Handles** and
+**Solid Finish** to verify that each completed glyph becomes filled while the
+other glyphs retain their Bézier construction. The completed word stops after
+its 1000 ms hold. Try `AV` to confirm the spacing follows the selected master's
+Glyphs kerning. Its GIF downloads at 2160×1532; the default 4× MP4 downloads at
+4320×3064.
 
 Use `--port` if 8765 is taken; the browser opens the selected port. Use
 `--no-open` when you want the command to print the URL without launching a

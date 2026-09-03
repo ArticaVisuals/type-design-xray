@@ -71,6 +71,7 @@ _PROCESS_PAGE = r"""<!doctype html>
       display:flex; align-items:center; gap:7px; color:#aaa;
       font-size:11px; letter-spacing:.08em;
     }
+    .labelled[hidden], .toggle[hidden] { display:none; }
     .glyph-form { display:flex; align-items:center; gap:6px; margin:0; }
     #glyph { width:180px; }
     #master { max-width:190px; }
@@ -202,6 +203,10 @@ _PROCESS_PAGE = r"""<!doctype html>
     </label>
     <label class="toggle"><input id="bezier" type="checkbox" checked> BEZIER</label>
     <label class="toggle"><input id="handles" type="checkbox"> HANDLES</label>
+    <label id="final-solid-control" class="toggle" hidden
+           title="Show Bézier handles until each glyph reaches its solid active master">
+      <input id="final-solid" type="checkbox"> SOLID FINISH
+    </label>
     <label class="toggle"><input id="show-metadata" type="checkbox" checked> METADATA</label>
     <details class="palette">
       <summary>COLORS</summary>
@@ -255,6 +260,8 @@ _PROCESS_PAGE = r"""<!doctype html>
       const mp4Scale = $("mp4-scale");
       const bezier = $("bezier");
       const handles = $("handles");
+      const finalSolid = $("final-solid");
+      const finalSolidControl = $("final-solid-control");
       const metadataToggle = $("show-metadata");
       const processFrame = $("process-frame");
       const metadata = $("metadata");
@@ -294,6 +301,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           point_size:Number(pointSize.value),
           bezier:bezier.checked,
           handles:bezier.checked && handles.checked,
+          final_solid:finalSolid.checked,
           show_metadata:metadataToggle.checked,
           colors:currentColors()
         });
@@ -354,6 +362,8 @@ _PROCESS_PAGE = r"""<!doctype html>
         const word = requestedContentMode() === "word";
         animationModeControl.hidden = !word;
         animationMode.disabled = !word;
+        finalSolidControl.hidden = !word;
+        finalSolid.disabled = !word;
         inputLabel.textContent = word ? "WORD" : "GLYPH";
         glyphInput.placeholder = word ? "Caliper" : "A or Aacute";
         glyphInput.maxLength = word ? 32 : 64;
@@ -602,6 +612,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           point_size:Number(pointSize.value),
           bezier:bezier.checked,
           handles:bezier.checked && handles.checked,
+          final_solid:finalSolid.checked,
           show_metadata:metadataToggle.checked,
           colors:currentColors()
         });
@@ -679,6 +690,7 @@ _PROCESS_PAGE = r"""<!doctype html>
             mp4_scale:Number(mp4Scale.value),
             bezier:bezier.checked,
             handles:bezier.checked && handles.checked,
+            final_solid:finalSolid.checked,
             show_metadata:metadataToggle.checked,
             colors:currentColors()
           };
@@ -823,6 +835,16 @@ _PROCESS_PAGE = r"""<!doctype html>
         renderLayer();
       });
       handles.addEventListener("change", () => {
+        stop();
+        clearRenderCache();
+        renderLayer();
+      });
+      finalSolid.addEventListener("change", () => {
+        if (finalSolid.checked) {
+          bezier.checked = true;
+          handles.checked = true;
+          syncHandles();
+        }
         stop();
         clearRenderCache();
         renderLayer();
