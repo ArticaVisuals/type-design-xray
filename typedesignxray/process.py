@@ -178,6 +178,13 @@ def _animation_mode(payload: Dict[str, Any]) -> str:
     return value
 
 
+def _mp4_scale(payload: Dict[str, Any]) -> int:
+    scale = _number(payload, "mp4_scale", 2.0, 2.0, 4.0)
+    if scale not in (2.0, 4.0):
+        raise ValueError("mp4_scale must be 2 or 4")
+    return int(scale)
+
+
 def _word_input(payload: Dict[str, Any]) -> str:
     value = payload.get("text", payload.get("glyph", ""))
     if not isinstance(value, str):
@@ -1034,6 +1041,9 @@ def export_request(
         )
     else:
         speed = _number(payload, "speed", 0.2, 0.08, 1.0)
+        animation_scale = (
+            _mp4_scale(payload) if format_name == "mp4" else 2
+        )
         frames = []
         for layer in catalog["layers"]:
             frames.append(
@@ -1055,6 +1065,7 @@ def export_request(
             frame_height=(
                 WORD_FRAME_HEIGHT if is_word else PROCESS_FRAME_HEIGHT
             ),
+            animation_scale=animation_scale,
             loop=not is_word,
         )
         result["total_frame_count"] = len(catalog["layers"])

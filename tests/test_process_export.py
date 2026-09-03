@@ -123,6 +123,7 @@ def test_animation_accepts_layer_records_and_renderer_with_variable_timing(
         "duration_ms": 1125.0,
         "width": 1080,
         "height": 1532,
+        "animation_scale": 2,
         "loop": True,
     }
 

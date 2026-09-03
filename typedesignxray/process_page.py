@@ -194,6 +194,12 @@ _PROCESS_PAGE = r"""<!doctype html>
              aria-describedby="speed-hint">
       <span id="speed-hint" hidden>Seconds per intermediate layer.</span>
     </label>
+    <label class="labelled">MP4 RES
+      <select id="mp4-scale">
+        <option value="2">2×</option>
+        <option value="4" selected>4× HIGH RES</option>
+      </select>
+    </label>
     <label class="toggle"><input id="bezier" type="checkbox" checked> BEZIER</label>
     <label class="toggle"><input id="handles" type="checkbox"> HANDLES</label>
     <label class="toggle"><input id="show-metadata" type="checkbox" checked> METADATA</label>
@@ -246,6 +252,7 @@ _PROCESS_PAGE = r"""<!doctype html>
       const stepLabel = $("step-label");
       const pointSize = $("point-size");
       const speed = $("speed");
+      const mp4Scale = $("mp4-scale");
       const bezier = $("bezier");
       const handles = $("handles");
       const metadataToggle = $("show-metadata");
@@ -669,6 +676,7 @@ _PROCESS_PAGE = r"""<!doctype html>
             output_name:downloadName(format),
             point_size:Number(pointSize.value),
             speed:secondsPerLayer,
+            mp4_scale:Number(mp4Scale.value),
             bezier:bezier.checked,
             handles:bezier.checked && handles.checked,
             show_metadata:metadataToggle.checked,

@@ -7,9 +7,10 @@ records containing an ``svg`` field, or arbitrary layer records plus a
 avoids a process-player/exporter import cycle.
 
 Single-glyph process frames are 540 x 766; composed-word frames are 1080 x 766.
-Animated GIF and MP4 output is rendered at 2x. Every non-final layer uses the
-caller-selected delay; the completed final state is always held for exactly
-1000 milliseconds. Single-glyph GIFs may loop, while word exports can stop.
+Animations use a caller-selected output scale (2x by default). Every non-final
+layer uses the caller-selected delay; the completed final state is always held
+for exactly 1000 milliseconds. Single-glyph GIFs may loop, while word exports
+can stop.
 """
 
 from __future__ import annotations
@@ -518,6 +519,7 @@ def export_process_animation(
         "duration_ms": total_duration_ms,
         "width": frame_width * animation_scale,
         "height": frame_height * animation_scale,
+        "animation_scale": animation_scale,
         "loop": loop,
     }
 

@@ -55,7 +55,7 @@ jobs:
       - name: Check installed package
         run: |
           python -m pip check
-          python -I -c "from importlib.metadata import version; import typedesignxray; from typedesignxray.config import available_presets; assert typedesignxray.__version__ == version('type-design-xray') == '1.2.1'; assert available_presets() == ['blueprint', 'contrast', 'drafting', 'light']"
+          python -I -c "from importlib.metadata import version; import typedesignxray; from typedesignxray.config import available_presets; assert typedesignxray.__version__ == version('type-design-xray') == '1.2.2'; assert available_presets() == ['blueprint', 'contrast', 'drafting', 'light']"
           python -I -c "from pathlib import Path; from typedesignxray.specimen import catalog_request, render_request, specimen_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source)}); assert catalog['sequence'][0]['label'] == 'A / a'; rendered = render_request({'font_path': str(source), 'glyphs': ['A', 'a'], 'mode': 'xray'}); assert rendered['compounded'] and len(rendered['renders']) == 2 and 'Specimen Player' in specimen_page()"
           python -I -c "from pathlib import Path; from typedesignxray.process import catalog_request, render_request; from typedesignxray.process_page import process_page; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source), 'glyph': 'a'}); assert catalog['layers'][0]['name'] == 'Skeleton v1' and catalog['layers'][-1]['is_final'] and catalog['final_hold_ms'] == 1000; rendered = render_request({'font_path': str(source), 'glyph': 'a', 'layer_id': catalog['layers'][0]['layer_id'], 'bezier': False, 'handles': False}); word = catalog_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'animation_mode': 'sequential'}); simultaneous = catalog_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'animation_mode': 'simultaneous'}); word_render = render_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'animation_mode': 'simultaneous', 'layer_id': simultaneous['layers'][0]['layer_id'], 'bezier': False}); assert word['frame_size'] == {'width': 1080, 'height': 766} and word['layers'][0]['glyph_layers'][1] is None and word['layers'][-1]['is_final']; assert all(layer_id is not None for layer_id in simultaneous['layers'][0]['glyph_layers']) and word_render['svg'].count('class=\"word-glyph\"') == 2; assert 'data-mode=\"outline\"' in rendered['svg'] and 'Font Design Process Video' in process_page()"
           python -I -c "from pathlib import Path; from typedesignxray.process import catalog_request, render_process_frame_svg; source = Path('examples/BlueprintDemo.glyphs').resolve(); catalog = catalog_request({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa'}); frame = render_process_frame_svg({'font_path': str(source), 'content_mode': 'word', 'text': 'Aa', 'layer_id': catalog['layers'][-1]['layer_id'], 'bezier': False, 'show_metadata': False}); assert 'TYPEFACE:' not in frame and '245.5' not in frame and 'translate(18 128)' in frame"
@@ -131,7 +131,7 @@ jobs:
               "handles": True,
           }
           word_gif_result = process_export(dict(word_common, format="gif", output_path=str(word_gif), speed=0.2))
-          word_mp4_result = process_export(dict(word_common, format="mp4", output_path=str(word_mp4), speed=0.2))
+          word_mp4_result = process_export(dict(word_common, format="mp4", output_path=str(word_mp4), speed=0.2, mp4_scale=4))
           assert png.read_bytes().startswith(b"\x89PNG")
           assert gif.read_bytes().startswith(b"GIF89a")
           assert mp4.stat().st_size > 100
@@ -144,7 +144,7 @@ jobs:
           assert word_gif_result["loop"] is False
           assert word_mp4_result["loop"] is False
           assert (word_gif_result["width"], word_gif_result["height"]) == (2160, 1532)
-          assert (word_mp4_result["width"], word_mp4_result["height"]) == (2160, 1532)
+          assert (word_mp4_result["width"], word_mp4_result["height"]) == (4320, 3064)
           PY
 
       - name: Verify documented Windows PowerShell setup

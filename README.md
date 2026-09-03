@@ -450,8 +450,10 @@ The controls also include:
   the same setting is used by SVG, PNG, GIF, and MP4 export.
 - **Layer SVG** and **Layer PNG** for the current 540×766 single-glyph frame.
 - **Frame SVG** and **Frame PNG** for the current 1080×766 word frame.
-- **Export GIF** and **Export MP4** at 1080×1532 for Single Glyph or 2160×1532
-  for Word, including the fixed final hold.
+- **Export GIF** at 1080×1532 for Single Glyph or 2160×1532 for Word.
+- **MP4 Res** selects 2× or 4× output. The player defaults to high-resolution
+  4× MP4: 2160×3064 for Single Glyph or 4320×3064 for Word. Choose 2× for the
+  previous, smaller dimensions. Both resolutions include the fixed final hold.
 
 Compounded Bézier rendering and the media exports use the same optional
 dependencies documented in the Specimen Player section above.
@@ -463,13 +465,15 @@ Start the local preview from the project folder—the directory containing
 `examples/BlueprintDemo.glyphs`, enter `a`, and click **Load**. The first frame
 is its open `Skeleton v1` layer and the final frame is the active `Regular`
 master. Click **Play** to verify the longer final hold, toggle **Handles**, and
-try **Layer SVG**. With Cairo/resvg and FFmpeg installed, GIF and MP4 should
-download at 1080×1532. No private font is needed for this test.
+try **Layer SVG**. With Cairo/resvg and FFmpeg installed, GIF should download at
+1080×1532 and the default 4× MP4 at 2160×3064. No private font is needed for
+this test.
 
 To test Word mode, select **Word**, enter `Aa`, and choose **Sequential**. The
 first frame contains only `A`; `a` appears when its own animation starts. Switch
 to **Simultaneous** to see both glyphs begin together. The completed word stops
-after its 1000 ms hold, and its GIF/MP4 downloads at 2160×1532.
+after its 1000 ms hold. Its GIF downloads at 2160×1532; the default 4× MP4
+downloads at 4320×3064.
 
 Use `--port` if 8765 is taken; the browser opens the selected port. Use
 `--no-open` when you want the command to print the URL without launching a

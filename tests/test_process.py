@@ -561,6 +561,7 @@ def test_export_request_writes_current_layer_svg_and_complete_timed_sequence(
         True,
     ]
     assert captured["frame_delay_ms"] == 125
+    assert captured["animation_scale"] == 2
     assert animation_result["final_hold_ms"] == 1000
     assert animation_result["width"] == 1080
     assert animation_result["height"] == 1532
@@ -613,9 +614,68 @@ def test_word_export_is_landscape_and_non_looping(
     assert captured["frames"][-1].is_master is True
     assert captured["frame_width"] == 1080
     assert captured["frame_height"] == 766
+    assert captured["animation_scale"] == 2
     assert captured["loop"] is False
     assert result["width"] == 2160
     assert result["height"] == 1532
     assert result["content_mode"] == "word"
     assert result["animation_mode"] == "sequential"
     assert result["show_metadata"] is False
+
+
+def test_word_mp4_can_export_at_four_times_player_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _word_layer_source(tmp_path)
+    captured = {}
+
+    def fake_animation(frames, destination, **kwargs):
+        captured.update(kwargs)
+        destination = Path(destination)
+        destination.write_bytes(b"mp4")
+        return {
+            "path": str(destination),
+            "name": destination.name,
+            "content_type": "video/mp4",
+            "format": "mp4",
+            "frame_count": len(frames),
+            "final_hold_ms": 1000,
+            "width": kwargs["frame_width"] * kwargs["animation_scale"],
+            "height": kwargs["frame_height"] * kwargs["animation_scale"],
+            "animation_scale": kwargs["animation_scale"],
+            "loop": kwargs["loop"],
+        }
+
+    monkeypatch.setattr(
+        "typedesignxray.process_export.export_process_animation",
+        fake_animation,
+    )
+    result = export_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "AB",
+            "format": "mp4",
+            "output_path": str(tmp_path / "word.mp4"),
+            "mp4_scale": 4,
+            "bezier": False,
+        }
+    )
+
+    assert captured["animation_scale"] == 4
+    assert result["animation_scale"] == 4
+    assert result["width"] == 4320
+    assert result["height"] == 3064
+
+    with pytest.raises(ValueError, match="mp4_scale must be 2 or 4"):
+        export_request(
+            {
+                "font_path": str(source),
+                "content_mode": "word",
+                "text": "AB",
+                "format": "mp4",
+                "output_path": str(tmp_path / "invalid.mp4"),
+                "mp4_scale": 3,
+                "bezier": False,
+            }
+        )

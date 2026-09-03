@@ -30,6 +30,7 @@ def test_process_page_exposes_expected_controls() -> None:
         "layer",
         "point-size",
         "speed",
+        "mp4-scale",
         "bezier",
         "handles",
         "show-metadata",
@@ -48,6 +49,8 @@ def test_process_page_exposes_expected_controls() -> None:
     assert '<option value="word">WORD</option>' in page
     assert '<option value="sequential" selected>SEQUENTIAL</option>' in page
     assert '<option value="simultaneous">SIMULTANEOUS</option>' in page
+    assert '<option value="2">2×</option>' in page
+    assert '<option value="4" selected>4× HIGH RES</option>' in page
     assert ">NODE FILL</label>" in page
     assert ">NODE STROKE</label>" in page
     assert page.count("data-color=") == 8
@@ -72,6 +75,7 @@ def test_process_page_uses_process_api_contracts() -> None:
         "show_metadata:metadataToggle.checked",
         "colors:currentColors()",
         "speed:secondsPerLayer",
+        "mp4_scale:Number(mp4Scale.value)",
     ):
         assert payload_key in page
 
