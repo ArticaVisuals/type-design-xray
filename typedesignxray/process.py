@@ -695,6 +695,7 @@ def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     bezier = _boolean(payload, "bezier", True)
     handles = _boolean(payload, "handles", True)
+    show_metadata = _boolean(payload, "show_metadata", True)
     colors = _specimen_colors(payload)
     active_font, selected_master_id, masters, glyphs, frames = _catalog_word(
         path, master, text, animation_mode
@@ -729,6 +730,7 @@ def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         "point_size": _format_number(point_size),
         "bezier": bezier,
         "handles": handles,
+        "show_metadata": show_metadata,
         "compounded": bezier,
         "colors": colors,
         "font_unit_scale": _format_number(scale),
@@ -752,6 +754,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     bezier = _boolean(payload, "bezier", True)
     handles = _boolean(payload, "handles", True)
+    show_metadata = _boolean(payload, "show_metadata", True)
     colors = _specimen_colors(payload)
     active_font, glyph_name, selected_master_id, masters, layers = _catalog(
         path, master, requested_glyph
@@ -796,6 +799,7 @@ def render_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         "point_size": _format_number(point_size),
         "bezier": bezier,
         "handles": handles,
+        "show_metadata": show_metadata,
         "compounded": compounded,
         "colors": colors,
         "font_unit_scale": _format_number(scale),
@@ -843,20 +847,29 @@ def _word_metadata_svg(rendered: Dict[str, Any]) -> str:
 def render_process_frame_svg(payload: Dict[str, Any]) -> str:
     """Compose one exact single-glyph or landscape word process frame."""
     rendered = render_request(payload)
+    show_metadata = bool(rendered["show_metadata"])
+    panel_y = 256 if show_metadata else 128
     if rendered.get("content_mode") == "word":
         frame = rendered["layer"]
         palette = rendered["colors"]
+        chrome = ""
+        if show_metadata:
+            chrome = (
+                '<path d="M 19 245.5 H 1062" fill="none" '
+                'stroke="{guides}" stroke-width="1"/>{metadata}'
+            ).format(
+                guides=palette["guides"],
+                metadata=_word_metadata_svg(rendered),
+            )
         return (
             '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="766" '
             'viewBox="0 0 1080 766" data-process-frame="true" '
             'data-process-content="word" data-text="{text}" '
             'data-animation-mode="{mode}" data-frame-id="{frame_id}" '
             'data-final="{final}" data-bezier="{bezier}" '
-            'data-handles="{handles}">'
+            'data-handles="{handles}" data-show-metadata="{show_metadata}">'
             '<rect width="1080" height="766" fill="{background}"/>'
-            '<path d="M 19 245.5 H 1062" fill="none" stroke="{guides}" '
-            'stroke-width="1"/>{metadata}'
-            '<g transform="translate(18 256)">{panel}</g></svg>'
+            '{chrome}<g transform="translate(18 {panel_y})">{panel}</g></svg>'
         ).format(
             text=html.escape(str(rendered["text"]), quote=True),
             mode=html.escape(str(rendered["animation_mode"]), quote=True),
@@ -864,9 +877,10 @@ def render_process_frame_svg(payload: Dict[str, Any]) -> str:
             final="true" if frame["is_final"] else "false",
             bezier="true" if rendered["bezier"] else "false",
             handles="true" if rendered["handles"] else "false",
+            show_metadata="true" if show_metadata else "false",
             background=palette["background"],
-            guides=palette["guides"],
-            metadata=_word_metadata_svg(rendered),
+            chrome=chrome,
+            panel_y=panel_y,
             panel=rendered["svg"],
         )
     path = _process_font_path(rendered["font_path"])
@@ -878,16 +892,30 @@ def render_process_frame_svg(payload: Dict[str, Any]) -> str:
     )
     glyph = font.glyphs[rendered["glyph"]["name"]]
     palette = rendered["colors"]
+    chrome = ""
+    if show_metadata:
+        chrome = (
+            '<path d="M 19 245.5 H 522" fill="none" '
+            'stroke="{guides}" stroke-width="1"/>{metadata}'
+        ).format(
+            guides=palette["guides"],
+            metadata=_metadata_svg(
+                font,
+                glyph,
+                float(rendered["point_size"]),
+                20.0,
+                palette,
+            ),
+        )
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="540" height="766" '
         'viewBox="0 0 540 766" data-process-frame="true" '
         'data-glyph="{glyph}" data-layer-id="{layer_id}" '
         'data-layer-name="{layer_name}" data-final="{final}" '
-        'data-bezier="{bezier}" data-handles="{handles}">'
+        'data-bezier="{bezier}" data-handles="{handles}" '
+        'data-show-metadata="{show_metadata}">'
         '<rect width="540" height="766" fill="{background}"/>'
-        '<path d="M 19 245.5 H 522" fill="none" stroke="{guides}" '
-        'stroke-width="1"/>{metadata}'
-        '<g transform="translate(18 256)">{panel}</g></svg>'
+        '{chrome}<g transform="translate(18 {panel_y})">{panel}</g></svg>'
     ).format(
         glyph=html.escape(glyph.name, quote=True),
         layer_id=html.escape(str(layer["layer_id"]), quote=True),
@@ -895,15 +923,10 @@ def render_process_frame_svg(payload: Dict[str, Any]) -> str:
         final="true" if layer["is_final"] else "false",
         bezier="true" if rendered["bezier"] else "false",
         handles="true" if rendered["handles"] else "false",
+        show_metadata="true" if show_metadata else "false",
         background=palette["background"],
-        guides=palette["guides"],
-        metadata=_metadata_svg(
-            font,
-            glyph,
-            float(rendered["point_size"]),
-            20.0,
-            palette,
-        ),
+        chrome=chrome,
+        panel_y=panel_y,
         panel=rendered["svg"],
     )
 
@@ -965,6 +988,7 @@ def export_request(
         str(catalog["family_name"]),
         target_name,
     )
+    show_metadata = _boolean(payload, "show_metadata", True)
     common = {
         "font_path": catalog["font_path"],
         "master": catalog["selected_master_id"],
@@ -975,6 +999,7 @@ def export_request(
         "point_size": payload.get("point_size", 370.0),
         "bezier": payload.get("bezier", True),
         "handles": payload.get("handles", False),
+        "show_metadata": show_metadata,
         "colors": payload.get("colors"),
     }
 
@@ -1045,6 +1070,7 @@ def export_request(
             "point_size": float(common["point_size"]),
             "bezier": bool(common["bezier"]),
             "handles": bool(common["handles"]),
+            "show_metadata": show_metadata,
             "colors": _specimen_colors(
                 {"colors": common["colors"] or {}}
             ),

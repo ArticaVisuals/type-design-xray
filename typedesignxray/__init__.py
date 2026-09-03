@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 from . import ir as ir
 from .ir import (

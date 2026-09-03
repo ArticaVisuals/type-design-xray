@@ -437,13 +437,17 @@ timeline.
 
 The controls also include:
 
-- Point size and all eight specimen colors: background, fill, stroke, text,
-  guides, handle lines, point fill, and point stroke.
+- Point size and all eight specimen colors: background, fill, outline stroke,
+  metadata text, guides, handle lines, node fill, and node stroke. The same
+  palette is used by the live preview and every export format.
 - **Bézier**, on by default, which compounds closed shapes before drawing the
   resulting outline and nodes. Open skeleton contours pass through unchanged.
 - A separate **Handles** switch, so nodes can remain visible without the
   off-curve points and connecting lines. If Bézier is off, an open skeleton is
   still drawn as an outline instead of disappearing.
+- **Metadata**, on by default, independently hides or shows the complete header
+  and divider. When hidden, the glyph or word is centered in the full canvas;
+  the same setting is used by SVG, PNG, GIF, and MP4 export.
 - **Layer SVG** and **Layer PNG** for the current 540×766 single-glyph frame.
 - **Frame SVG** and **Frame PNG** for the current 1080×766 word frame.
 - **Export GIF** and **Export MP4** at 1080×1532 for Single Glyph or 2160×1532

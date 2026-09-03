@@ -367,6 +367,41 @@ def test_handles_toggle_is_independent_inside_compounded_bezier_mode() -> None:
     assert re.search(r'data-handle="(?:in|out)"', shown["svg"])
 
 
+def test_process_palette_controls_text_shapes_handles_and_nodes() -> None:
+    catalog = catalog_request({"font_path": str(EXAMPLE), "glyph": "a"})
+    svg = render_process_frame_svg(
+        {
+            "font_path": str(EXAMPLE),
+            "glyph": "a",
+            "layer_id": catalog["layers"][-1]["layer_id"],
+            "bezier": True,
+            "handles": True,
+            "colors": {
+                "background": "#010203",
+                "fill": "#112233",
+                "stroke": "#223344",
+                "text": "#334455",
+                "guides": "#445566",
+                "handles": "#556677",
+                "point_fill": "#667788",
+                "point_stroke": "#778899",
+            },
+        }
+    )
+
+    for color in (
+        "#010203",
+        "#112233",
+        "#223344",
+        "#334455",
+        "#445566",
+        "#556677",
+        "#667788",
+        "#778899",
+    ):
+        assert color in svg
+
+
 def test_process_requires_editable_glyphs_source(tmp_path: Path) -> None:
     source = tmp_path / "font.ttf"
     source.write_bytes(b"not a font")
@@ -402,6 +437,56 @@ def test_full_process_frame_matches_half_width_reference_geometry(
     assert "|↔|:      700 upm" in svg
     assert 'd="M 19 245.5 H 522"' in svg
     assert 'transform="translate(18 256)"' in svg
+
+
+def test_metadata_can_be_removed_with_the_divider_and_artwork_recenters(
+    tmp_path: Path,
+) -> None:
+    source = _layer_source(tmp_path)
+    single = render_process_frame_svg(
+        {
+            "font_path": str(source),
+            "master": "M1",
+            "glyph": "A",
+            "layer_id": "S1",
+            "bezier": False,
+            "show_metadata": False,
+        }
+    )
+    word_source = _word_layer_source(tmp_path)
+    word_catalog = catalog_request(
+        {
+            "font_path": str(word_source),
+            "content_mode": "word",
+            "text": "AB",
+        }
+    )
+    word = render_process_frame_svg(
+        {
+            "font_path": str(word_source),
+            "content_mode": "word",
+            "text": "AB",
+            "layer_id": word_catalog["layers"][-1]["layer_id"],
+            "bezier": False,
+            "show_metadata": False,
+        }
+    )
+
+    for svg in (single, word):
+        root = ET.fromstring(svg)
+        assert root.get("data-show-metadata") == "false"
+        assert "TYPEFACE:" not in svg
+        assert "245.5" not in svg
+        assert 'transform="translate(18 128)"' in svg
+
+    with pytest.raises(ValueError, match="show_metadata must be true or false"):
+        render_request(
+            {
+                "font_path": str(source),
+                "glyph": "A",
+                "show_metadata": "no",
+            }
+        )
 
 
 def test_export_request_writes_current_layer_svg_and_complete_timed_sequence(
@@ -518,10 +603,13 @@ def test_word_export_is_landscape_and_non_looping(
             "output_path": str(tmp_path / "word.gif"),
             "speed": 0.2,
             "bezier": False,
+            "show_metadata": False,
         }
     )
 
     assert len(captured["frames"]) == 5
+    assert all("TYPEFACE:" not in frame.svg for frame in captured["frames"])
+    assert all("245.5" not in frame.svg for frame in captured["frames"])
     assert captured["frames"][-1].is_master is True
     assert captured["frame_width"] == 1080
     assert captured["frame_height"] == 766
@@ -530,3 +618,4 @@ def test_word_export_is_landscape_and_non_looping(
     assert result["height"] == 1532
     assert result["content_mode"] == "word"
     assert result["animation_mode"] == "sequential"
+    assert result["show_metadata"] is False

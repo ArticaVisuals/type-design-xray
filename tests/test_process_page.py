@@ -32,6 +32,7 @@ def test_process_page_exposes_expected_controls() -> None:
         "speed",
         "bezier",
         "handles",
+        "show-metadata",
         "export-svg",
         "export-png",
         "export-gif",
@@ -42,10 +43,13 @@ def test_process_page_exposes_expected_controls() -> None:
 
     assert '<input id="bezier" type="checkbox" checked>' in page
     assert '<input id="handles" type="checkbox">' in page
+    assert '<input id="show-metadata" type="checkbox" checked>' in page
     assert '<option value="single" selected>SINGLE GLYPH</option>' in page
     assert '<option value="word">WORD</option>' in page
     assert '<option value="sequential" selected>SEQUENTIAL</option>' in page
     assert '<option value="simultaneous">SIMULTANEOUS</option>' in page
+    assert ">NODE FILL</label>" in page
+    assert ">NODE STROKE</label>" in page
     assert page.count("data-color=") == 8
 
 
@@ -65,10 +69,21 @@ def test_process_page_uses_process_api_contracts() -> None:
         "point_size:Number(pointSize.value)",
         "bezier:bezier.checked",
         "handles:bezier.checked && handles.checked",
+        "show_metadata:metadataToggle.checked",
         "colors:currentColors()",
         "speed:secondsPerLayer",
     ):
         assert payload_key in page
+
+
+def test_metadata_toggle_hides_the_header_and_updates_every_export() -> None:
+    page = process_page()
+
+    assert ".process-frame.metadata-hidden { grid-template-rows:1fr; }" in page
+    assert '.classList.toggle("metadata-hidden", hidden)' in page
+    assert "metadata.hidden = hidden;" in page
+    assert 'metadataToggle.addEventListener("change"' in page
+    assert "applyMetadataVisibility();" in page
 
 
 def test_process_playback_loops_single_glyph_and_stops_word_after_final_hold() -> None:

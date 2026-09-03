@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "type-design-xray"
-version = "1.2.0"
+version = "1.2.1"
 description = "X-ray any letterform: outline, nodes and bezier handles, exported straight from your font source files."
 readme = "README.md"
 requires-python = ">=3.9"

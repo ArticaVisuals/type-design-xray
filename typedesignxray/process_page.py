@@ -122,6 +122,8 @@ _PROCESS_PAGE = r"""<!doctype html>
     .process-frame.word-mode {
       width:min(1080px,100%); aspect-ratio:1080 / 766;
     }
+    .process-frame.metadata-hidden { grid-template-rows:1fr; }
+    .process-frame.metadata-hidden .metadata { display:none; }
     .metadata {
       display:flex; align-items:flex-start; margin:0;
       padding-top:18px; padding-bottom:10px;
@@ -194,6 +196,7 @@ _PROCESS_PAGE = r"""<!doctype html>
     </label>
     <label class="toggle"><input id="bezier" type="checkbox" checked> BEZIER</label>
     <label class="toggle"><input id="handles" type="checkbox"> HANDLES</label>
+    <label class="toggle"><input id="show-metadata" type="checkbox" checked> METADATA</label>
     <details class="palette">
       <summary>COLORS</summary>
       <div class="palette-grid">
@@ -203,8 +206,8 @@ _PROCESS_PAGE = r"""<!doctype html>
         <label class="color-control"><input type="color" value="#ffffff" data-color="text">TEXT</label>
         <label class="color-control"><input type="color" value="#737373" data-color="guides">GUIDES</label>
         <label class="color-control"><input type="color" value="#8e8e8e" data-color="handles">HANDLES</label>
-        <label class="color-control"><input type="color" value="#000000" data-color="point_fill">POINT FILL</label>
-        <label class="color-control"><input type="color" value="#ffffff" data-color="point_stroke">POINT STROKE</label>
+        <label class="color-control"><input type="color" value="#000000" data-color="point_fill">NODE FILL</label>
+        <label class="color-control"><input type="color" value="#ffffff" data-color="point_stroke">NODE STROKE</label>
         <button class="palette-reset" id="reset-colors" type="button">RESET COLORS</button>
       </div>
     </details>
@@ -245,6 +248,7 @@ _PROCESS_PAGE = r"""<!doctype html>
       const speed = $("speed");
       const bezier = $("bezier");
       const handles = $("handles");
+      const metadataToggle = $("show-metadata");
       const processFrame = $("process-frame");
       const metadata = $("metadata");
       const glyphStage = $("glyph-stage");
@@ -283,6 +287,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           point_size:Number(pointSize.value),
           bezier:bezier.checked,
           handles:bezier.checked && handles.checked,
+          show_metadata:metadataToggle.checked,
           colors:currentColors()
         });
       }
@@ -295,6 +300,11 @@ _PROCESS_PAGE = r"""<!doctype html>
         processFrame.style.setProperty("--process-bg", colors.background);
         processFrame.style.setProperty("--process-text", colors.text);
         processFrame.style.setProperty("--process-guides", colors.guides);
+      }
+      function applyMetadataVisibility() {
+        const hidden = !metadataToggle.checked;
+        metadata.hidden = hidden;
+        processFrame.classList.toggle("metadata-hidden", hidden);
       }
       async function jsonRequest(url, payload) {
         const response = await fetch(url, {
@@ -585,6 +595,7 @@ _PROCESS_PAGE = r"""<!doctype html>
           point_size:Number(pointSize.value),
           bezier:bezier.checked,
           handles:bezier.checked && handles.checked,
+          show_metadata:metadataToggle.checked,
           colors:currentColors()
         });
         if (requestGeneration === catalogGeneration) renderCache.set(key, data);
@@ -660,6 +671,7 @@ _PROCESS_PAGE = r"""<!doctype html>
             speed:secondsPerLayer,
             bezier:bezier.checked,
             handles:bezier.checked && handles.checked,
+            show_metadata:metadataToggle.checked,
             colors:currentColors()
           };
           if (frameFormat) {
@@ -807,6 +819,11 @@ _PROCESS_PAGE = r"""<!doctype html>
         clearRenderCache();
         renderLayer();
       });
+      metadataToggle.addEventListener("change", () => {
+        stop();
+        applyMetadataVisibility();
+        clearRenderCache();
+      });
       speed.addEventListener("change", () => {
         if (playing) {
           if (timer !== null) window.clearTimeout(timer);
@@ -853,6 +870,7 @@ _PROCESS_PAGE = r"""<!doctype html>
       });
       syncContentMode();
       syncHandles();
+      applyMetadataVisibility();
       applyPaletteStyles();
     })();
   </script>

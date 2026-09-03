@@ -194,15 +194,20 @@ final result: passed
   master while the remaining glyphs finish.
 - Both word timelines stop after the completed frame's 1000 ms hold; existing
   single-glyph preview playback continues to loop.
+- The Metadata toggle removes both the complete header and divider from live
+  preview and every export, then centers the artwork in the full canvas.
+- The process palette independently controls background, fill, outline stroke,
+  metadata text, guides, handles, node fill, and node stroke.
 - Latest Caliper `Caliper` check: 67 sequential frames and 19 simultaneous
   frames, with per-glyph authored layer counts of 4/19/4/7/13/5/15. Both modes
   end with all seven glyphs on `m01 / Regular`.
 - Real bundled-demo GIF/MP4 exports: 2160 × 1532. The word GIF has no repeat
   extension and the MP4 is a single finite timeline.
-- Clean 1.2.0 wheel install: both word modes catalogued and rendered from the
+- Clean 1.2.1 wheel install: both word modes catalogued and rendered from the
   installed package, and the installed preview command opened successfully.
-- Automated suite: 345 passed, 4 skipped.
+- Automated suite: 348 passed, 4 skipped.
 - Python compilation, embedded JavaScript syntax, and diff checks: passed.
 - Visual capture: `/tmp/caliper-word-process-final.png`.
+- Metadata-free visual capture: `/tmp/caliper-word-no-metadata.png`.
 
 final result: passed
