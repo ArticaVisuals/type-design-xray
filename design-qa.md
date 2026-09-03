@@ -203,11 +203,16 @@ final result: passed
 - Latest Caliper `Caliper` check: 67 sequential frames and 19 simultaneous
   frames, with per-glyph authored layer counts of 4/19/4/7/13/5/15. Both modes
   end with all seven glyphs on `m01 / Regular`.
+- Word positions always use the selected master's Glyphs kerning. Process-level
+  coverage verifies class kerning, pair exceptions, fixed positions across both
+  animation modes, and the exact same placement in composed SVG frames.
+- Latest Caliper `m01 / Regular` kerning check: `AV` resolves to -90 units and
+  `Caliper` resolves to 0/+10/+20/+10/+5/0 units between its glyphs.
 - Real bundled-demo GIF/MP4 exports: 2160 × 1532. The word GIF has no repeat
   extension and the MP4 is a single finite timeline.
-- Clean 1.2.2 wheel install: both word modes catalogued and rendered from the
+- Clean 1.2.3 wheel install: both word modes catalogued and rendered from the
   installed package, and the installed preview command opened successfully.
-- Automated suite: 349 passed, 4 skipped.
+- Automated suite: 350 passed, 4 skipped.
 - Python compilation, embedded JavaScript syntax, and diff checks: passed.
 - Visual capture: `/tmp/caliper-word-process-final.png`.
 - Metadata-free visual capture: `/tmp/caliper-word-no-metadata.png`.

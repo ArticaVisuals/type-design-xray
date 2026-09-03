@@ -478,6 +478,7 @@ def catalog_request(payload: Dict[str, Any]) -> Dict[str, Any]:
             "masters": masters,
             "content_mode": "word",
             "animation_mode": animation_mode,
+            "kerning_applied": True,
             "text": text,
             "glyphs": glyphs,
             "glyph_count": len(glyphs),
@@ -682,6 +683,7 @@ def _word_panel_svg(
         '<svg xmlns="http://www.w3.org/2000/svg" '
         'viewBox="0 0 1044 510" width="1044" height="510" '
         'role="img" aria-label="Word design process" '
+        'data-kerning="selected-master" '
         'data-process-word-panel="true" data-frame-id="{frame_id}" '
         'data-visible-glyphs="{visible}">{glyphs}</svg>'.format(
             frame_id=html.escape(str(frame["layer_id"]), quote=True),
@@ -731,6 +733,7 @@ def _render_word_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         "selected_master_id": selected_master_id,
         "content_mode": "word",
         "animation_mode": animation_mode,
+        "kerning_applied": True,
         "text": text,
         "glyphs": glyphs,
         "layer": frame,
@@ -873,6 +876,7 @@ def render_process_frame_svg(payload: Dict[str, Any]) -> str:
             'viewBox="0 0 1080 766" data-process-frame="true" '
             'data-process-content="word" data-text="{text}" '
             'data-animation-mode="{mode}" data-frame-id="{frame_id}" '
+            'data-kerning="selected-master" '
             'data-final="{final}" data-bezier="{bezier}" '
             'data-handles="{handles}" data-show-metadata="{show_metadata}">'
             '<rect width="1080" height="766" fill="{background}"/>'

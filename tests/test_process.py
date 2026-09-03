@@ -65,6 +65,7 @@ def _word_layer_source(tmp_path: Path) -> Path:
         glyphs = (
             {
                 glyphname = A;
+                kernRight = AGroup;
                 unicode = 65;
                 layers = (
                     { layerId = SA; associatedMasterId = M1; name = "Skeleton A"; width = 600; paths = ({ closed = 0; nodes = ("0 0 LINE", "300 700 LINE", "600 0 LINE"); }); },
@@ -74,6 +75,7 @@ def _word_layer_source(tmp_path: Path) -> Path:
             },
             {
                 glyphname = B;
+                kernLeft = BGroup;
                 unicode = 66;
                 layers = (
                     { layerId = SB; associatedMasterId = M1; name = "Skeleton B"; width = 500; paths = ({ closed = 0; nodes = ("0 0 LINE", "0 700 LINE", "450 350 LINE"); }); },
@@ -81,6 +83,12 @@ def _word_layer_source(tmp_path: Path) -> Path:
                 );
             },
         );
+        kerningLTR = {
+            M1 = {
+                "@MMK_L_AGroup" = { "@MMK_R_BGroup" = -80; };
+                B = { A = -30; };
+            };
+        };
         }
         """,
         encoding="utf-8",
@@ -162,6 +170,7 @@ def test_word_catalog_builds_sequential_and_simultaneous_timelines(
     assert sequential["text"] == "AB"
     assert sequential["frame_size"] == {"width": 1080, "height": 766}
     assert sequential["animation_size"] == {"width": 2160, "height": 1532}
+    assert sequential["kerning_applied"] is True
     assert [item["name"] for item in sequential["glyphs"]] == ["A", "B"]
     assert [frame["glyph_layers"] for frame in sequential["layers"]] == [
         ["SA", None],
@@ -177,6 +186,77 @@ def test_word_catalog_builds_sequential_and_simultaneous_timelines(
     ]
     assert sequential["layers"][-1]["is_final"] is True
     assert simultaneous["layers"][-1]["delay_ms"] == 1000
+
+
+def test_word_catalog_and_frames_use_glyphs_master_kerning(
+    tmp_path: Path,
+) -> None:
+    source = _word_layer_source(tmp_path)
+    sequential = catalog_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "ABA",
+            "animation_mode": "sequential",
+        }
+    )
+    simultaneous = catalog_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "ABA",
+            "animation_mode": "simultaneous",
+        }
+    )
+
+    # A/B comes from the Glyphs kerning groups; B/A is a pair exception.
+    # Both animation modes must retain the active master's exact positions.
+    expected_origins = [0, 520, 990]
+    expected_kerns = [0, -80, -30]
+    for catalog in (sequential, simultaneous):
+        assert catalog["kerning_applied"] is True
+        assert [
+            item["origin_x"] for item in catalog["glyphs"]
+        ] == expected_origins
+        assert [
+            item["kern_before"] for item in catalog["glyphs"]
+        ] == expected_kerns
+
+    rendered = render_request(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "ABA",
+            "animation_mode": "simultaneous",
+            "layer_id": simultaneous["layers"][-1]["layer_id"],
+            "bezier": False,
+        }
+    )
+    scale = float(rendered["font_unit_scale"])
+    positions = [
+        float(value)
+        for value in re.findall(
+            r'class="word-glyph"[^>]+transform="translate\(([-0-9.]+) ',
+            rendered["svg"],
+        )
+    ]
+    assert rendered["kerning_applied"] is True
+    assert 'data-kerning="selected-master"' in rendered["svg"]
+    assert len(positions) == 3
+    assert positions[1] - positions[0] == pytest.approx(520 * scale, abs=0.002)
+    assert positions[2] - positions[1] == pytest.approx(470 * scale, abs=0.002)
+
+    frame = render_process_frame_svg(
+        {
+            "font_path": str(source),
+            "content_mode": "word",
+            "text": "ABA",
+            "animation_mode": "simultaneous",
+            "layer_id": simultaneous["layers"][-1]["layer_id"],
+            "bezier": False,
+        }
+    )
+    assert 'data-kerning="selected-master"' in frame
 
 
 @pytest.mark.parametrize(

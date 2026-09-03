@@ -400,7 +400,11 @@ The preview also includes a process player at
 the **Font Design Process** tab. **Single Glyph** mode uses the left half of the
 specimen layout: a 540×766 layer frame with source-derived metadata above one
 glyph. **Word** mode expands to the full 1080×766 landscape format and composes
-the entered text with the active master's real advances and kerning.
+the entered text with the active master's real advances and kerning. Kerning is
+always on in Word mode: every frame uses the selected master's Glyphs pair and
+class kerning, including glyph-specific exceptions and explicit zero overrides.
+Those positions remain fixed while the authored layers animate, so live preview,
+SVG/PNG frames, GIF, and MP4 all produce the same lockup.
 
 Import an editable `.glyphs` file, enter one character such as `A` or an exact
 Glyphs glyph name such as `ampersand`, then click **Load**. The player reads the
@@ -472,7 +476,8 @@ this test.
 To test Word mode, select **Word**, enter `Aa`, and choose **Sequential**. The
 first frame contains only `A`; `a` appears when its own animation starts. Switch
 to **Simultaneous** to see both glyphs begin together. The completed word stops
-after its 1000 ms hold. Its GIF downloads at 2160×1532; the default 4× MP4
+after its 1000 ms hold. Try `AV` to confirm the spacing follows the selected
+master's Glyphs kerning. Its GIF downloads at 2160×1532; the default 4× MP4
 downloads at 4320×3064.
 
 Use `--port` if 8765 is taken; the browser opens the selected port. Use
