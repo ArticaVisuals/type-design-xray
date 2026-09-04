@@ -271,7 +271,7 @@ def test_version_and_list_presets_exit_zero(
 ) -> None:
     assert main(["--version"]) == 0
     version_output = capsys.readouterr()
-    assert "1.2.4" in version_output.out
+    assert "1.2.5" in version_output.out
 
     assert main(["--list-presets"]) == 0
     preset_output = capsys.readouterr()

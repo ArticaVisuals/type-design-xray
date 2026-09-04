@@ -566,7 +566,7 @@ config and override just what you want.
 
 | | |
 |---|---|
-| **blueprint** — the signature look | <img src="examples/output/preset-blueprint.svg" width="320"> |
+| **blueprint** — the default monochrome look | <img src="examples/output/preset-blueprint.svg" width="320"> |
 | **light** — for print and docs | <img src="examples/output/preset-light.svg" width="320"> |
 | **contrast** — presentation / accessibility | <img src="examples/output/preset-contrast.svg" width="320"> |
 | **drafting** — spec-sheet feel, translucent fill | <img src="examples/output/preset-drafting.svg" width="320"> |

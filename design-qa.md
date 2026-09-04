@@ -147,6 +147,26 @@ final result: passed
 
 final result: passed
 
+## X-Ray Blueprint monochrome default artwork — 2026-09-04
+
+- Changed the default Blueprint preset used by the initial `Type` preview from
+  blue to the same white, gray, and black family used by Font Specimen and Font
+  Design Process.
+- Applied the neutral palette consistently to the outline, fill, handles,
+  corner and smooth nodes, metric guides, and metric labels.
+- Kept the canvas transparent and preserved the three alternate presets and
+  every user-adjustable color control.
+- Browser first-load check: `Type` rendered with only `#f5f5f3`, `#8e8e8e`,
+  and black; no legacy blue values remained in the generated SVG.
+- Browser alternate-preset check: Contrast retained its original color palette
+  and Blueprint restored the monochrome defaults when reselected.
+- Browser console: no warnings or errors.
+- Automated suite: 353 passed, 4 skipped.
+- Clean 1.2.5 wheel install: packaged Blueprint colors and first-load web state
+  matched the source checkout.
+
+final result: passed
+
 ## X-Ray Blueprint monochrome shell — 2026-08-30
 
 - Restyled the X-Ray Blueprint application shell to use the same monospaced

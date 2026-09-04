@@ -21,6 +21,23 @@ def test_shipped_presets_load_and_validate() -> None:
         style.Style.from_dict(config.load_preset(name))
 
 
+def test_default_blueprint_preset_uses_the_shared_monochrome_palette() -> None:
+    resolved = config.resolve_style(preset="blueprint")
+
+    assert resolved.outline.stroke == "#f5f5f3"
+    assert resolved.outline.fill == "#f5f5f3"
+    assert resolved.handles.point.fill == "#000000"
+    assert resolved.handles.point.stroke == "#8e8e8e"
+    assert resolved.handles.line.color == "#8e8e8e"
+    assert resolved.nodes.corner.fill == "#000000"
+    assert resolved.nodes.corner.stroke == "#f5f5f3"
+    assert resolved.nodes.smooth.fill == "#f5f5f3"
+    assert resolved.nodes.smooth.stroke == "#8e8e8e"
+    assert resolved.metrics.line.color == "#737373"
+    assert resolved.metrics.sidebearing_line.color == "#737373"
+    assert resolved.metrics.label_color == "#b8b8b3"
+
+
 def test_json_and_toml_configs_resolve_identically(tmp_path: Path) -> None:
     if (
         importlib.util.find_spec("tomllib") is None
