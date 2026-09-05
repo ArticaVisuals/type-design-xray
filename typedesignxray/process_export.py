@@ -324,7 +324,10 @@ def _encode_timed_frames(
                 "[0:v]split[source][palette_source];"
                 "[palette_source]palettegen=stats_mode=diff[palette];"
                 "[source][palette]paletteuse=dither=sierra2_4a",
-                "-vsync",
+                # ``-vsync`` was removed in FFmpeg 9.  ``-fps_mode`` is its
+                # per-stream replacement and preserves the concat manifest's
+                # variable frame timestamps without relying on legacy syntax.
+                "-fps_mode",
                 "vfr",
                 "-loop",
                 "0" if loop else "-1",
@@ -338,7 +341,7 @@ def _encode_timed_frames(
     else:
         command.extend(
             [
-                "-vsync",
+                "-fps_mode",
                 "vfr",
                 "-c:v",
                 "libx264",

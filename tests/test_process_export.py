@@ -241,13 +241,15 @@ def test_ffmpeg_commands_use_concat_vfr_and_format_specific_encoding(
 
     gif, mp4 = commands
     assert gif[gif.index("-f") + 1] == "concat"
-    assert gif[gif.index("-vsync") + 1] == "vfr"
+    assert gif[gif.index("-fps_mode") + 1] == "vfr"
+    assert "-vsync" not in gif
     assert "palettegen=stats_mode=diff" in gif[gif.index("-filter_complex") + 1]
     assert gif[gif.index("-loop") + 1] == "0"
     assert gif[gif.index("-final_delay") + 1] == "1"
     assert "-t" not in gif
     assert mp4[mp4.index("-f") + 1] == "concat"
-    assert mp4[mp4.index("-vsync") + 1] == "vfr"
+    assert mp4[mp4.index("-fps_mode") + 1] == "vfr"
+    assert "-vsync" not in mp4
     assert mp4[mp4.index("-c:v") + 1] == "libx264"
     assert mp4[mp4.index("-bf") + 1] == "0"
     assert mp4[mp4.index("-pix_fmt") + 1] == "yuv420p"

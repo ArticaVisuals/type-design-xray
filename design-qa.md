@@ -147,6 +147,24 @@ final result: passed
 
 final result: passed
 
+## FFmpeg 9 process export compatibility — 2026-09-04
+
+- Replaced the removed global `-vsync vfr` option with FFmpeg's supported
+  per-stream `-fps_mode vfr` equivalent in both Font Design Process GIF and
+  MP4 export.
+- Preserved the variable authored-layer timing and fixed 1000 ms final hold.
+- Added regression coverage that rejects the removed option in both encoder
+  commands.
+- Real FFmpeg 9.0.1 checks: timed MP4 and looping GIF both encoded successfully.
+- Real Caliper stress check: Word + Simultaneous + Solid Finish + Handles
+  exported 19 frames at the default 4× resolution (4320×3064), with the exact
+  4.6-second variable-duration timeline and 1000 ms final hold.
+- Automated suite: 353 passed, 4 skipped.
+- Clean 1.2.6 wheel install: the installed package encoded a timed MP4 with
+  FFmpeg 9.0.1 at the expected 1080×1532 dimensions.
+
+final result: passed
+
 ## X-Ray Blueprint monochrome default artwork — 2026-09-04
 
 - Changed the default Blueprint preset used by the initial `Type` preview from

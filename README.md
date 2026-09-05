@@ -166,6 +166,11 @@ create the environment. Scroll up and check it succeeded before continuing.
 **`'type-design-xray' is not recognized`** — you are missing the `.venv/bin/`
 (or `.\.venv\Scripts\`) prefix, or the environment is not activated. See below.
 
+**`ffmpeg process export failed ... Unrecognized option 'vsync'`** — FFmpeg 9
+removed an older timing option used by Type Design X-Ray 1.2.5. Update to the
+current `main` branch using the commands below; version 1.2.6 uses FFmpeg's
+supported per-stream timing option for Font Design Process GIF and MP4 export.
+
 **`Activate.ps1 cannot be loaded because running scripts is disabled`** — do
 not activate the environment. Activation is optional, and the full Windows
 commands work without changing PowerShell's execution policy. From the project
