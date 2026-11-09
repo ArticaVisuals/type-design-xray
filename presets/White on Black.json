@@ -1,0 +1,68 @@
+{
+  "preset": "blueprint",
+  "canvas": {
+    "background": "#1F1F1F",
+    "frame": "auto",
+    "width": 1400
+  },
+  "outline": {
+    "stroke": "#EEEEEE",
+    "fill": "#3D8BFD",
+    "width": 1.6,
+    "fill_enabled": false
+  },
+  "handles": {
+    "point": {
+      "fill": "#1F1F1F",
+      "stroke": "#EEEEEE",
+      "size": 2,
+      "stroke_width": 1,
+      "shape": "square"
+    },
+    "line": {
+      "color": "#EEEEEE",
+      "width": 1
+    }
+  },
+  "nodes": {
+    "corner": {
+      "fill": "#1F1F1F",
+      "stroke": "#EEEEEE",
+      "size": 4,
+      "stroke_width": 1,
+      "shape": "square"
+    },
+    "smooth": {
+      "fill": "#1F1F1F",
+      "stroke": "#EEEEEE",
+      "size": 2,
+      "stroke_width": 1,
+      "shape": "square"
+    }
+  },
+  "metrics": {
+    "visible": true,
+    "show": [
+      "baseline",
+      "xheight",
+      "capheight",
+      "ascender",
+      "descender",
+      "sidebearings"
+    ],
+    "line": {
+      "color": "#EEEEEE",
+      "width": 1,
+      "visible": true
+    },
+    "sidebearing_line": {
+      "visible": true
+    },
+    "labels": true,
+    "label_color": "#EEEEEE",
+    "label_size": 11,
+    "label_family": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    "label_weight": "normal",
+    "label_style": "normal"
+  }
+}
